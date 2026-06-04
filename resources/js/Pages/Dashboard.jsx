@@ -1,5 +1,5 @@
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
-import { Head } from '@inertiajs/react';
+import { Head, Link } from '@inertiajs/react';
 
 export default function Dashboard({ workspace, workspaceRole }) {
     return (
@@ -32,6 +32,11 @@ export default function Dashboard({ workspace, workspaceRole }) {
 
                                     <p className="mt-2 text-sm text-gray-600">
                                         Your role: <span className="font-semibold">{workspaceRole}</span>
+                                        <Link
+                                            href={route('workspaces.index')}
+                                            className="mt-4 inline-flex rounded-md bg-gray-900 px-4 py-2 text-sm font-semibold text-white hover:bg-gray-700">
+                                            Manage Workspaces
+                                        </Link>
                                     </p>
                                 </div>
                             ) : (
