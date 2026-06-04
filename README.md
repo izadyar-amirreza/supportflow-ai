@@ -1,58 +1,103 @@
-<p align="center"><a href="https://laravel.com" target="_blank"><img src="https://raw.githubusercontent.com/laravel/art/master/logo-lockup/5%20SVG/2%20CMYK/1%20Full%20Color/laravel-logolockup-cmyk-red.svg" width="400" alt="Laravel Logo"></a></p>
+# SupportFlow AI
 
-<p align="center">
-<a href="https://github.com/laravel/framework/actions"><img src="https://github.com/laravel/framework/workflows/tests/badge.svg" alt="Build Status"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/dt/laravel/framework" alt="Total Downloads"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/v/laravel/framework" alt="Latest Stable Version"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/l/laravel/framework" alt="License"></a>
-</p>
+SupportFlow AI is a multi-tenant AI-powered helpdesk SaaS platform built with Laravel, Inertia.js, React, and Tailwind CSS.
 
-## About Laravel
+The goal of this project is to demonstrate production-minded full-stack development skills, including authentication, multi-tenancy, role-based access control, ticket management, AI-assisted support workflows, testing, and deployment.
 
-Laravel is a web application framework with expressive, elegant syntax. We believe development must be an enjoyable and creative experience to be truly fulfilling. Laravel takes the pain out of development by easing common tasks used in many web projects, such as:
+## Planned Features
 
-- [Simple, fast routing engine](https://laravel.com/docs/routing).
-- [Powerful dependency injection container](https://laravel.com/docs/container).
-- Multiple back-ends for [session](https://laravel.com/docs/session) and [cache](https://laravel.com/docs/cache) storage.
-- Expressive, intuitive [database ORM](https://laravel.com/docs/eloquent).
-- Database agnostic [schema migrations](https://laravel.com/docs/migrations).
-- [Robust background job processing](https://laravel.com/docs/queues).
-- [Real-time event broadcasting](https://laravel.com/docs/broadcasting).
+- User authentication
+- Multi-tenant workspaces
+- Workspace members and roles
+- Role-based access control
+- Ticket management
+- Ticket comments and internal notes
+- File attachments
+- Activity logs
+- Notifications
+- AI ticket summaries
+- AI response suggestions
+- Dashboard analytics
+- Automated tests
+- Docker deployment
+- GitHub Actions CI/CD
 
-Laravel is accessible, powerful, and provides tools required for large, robust applications.
+## Tech Stack
 
-## Learning Laravel
+- Laravel
+- Inertia.js
+- React
+- Tailwind CSS
+- SQLite for local development
+- PostgreSQL for production
+- Vite
+- Docker
+- GitHub Actions
+- AI API integration
 
-Laravel has the most extensive and thorough [documentation](https://laravel.com/docs) and video tutorial library of all modern web application frameworks, making it a breeze to get started with the framework.
+## Current Status
 
-In addition, [Laracasts](https://laracasts.com) contains thousands of video tutorials on a range of topics including Laravel, modern PHP, unit testing, and JavaScript. Boost your skills by digging into our comprehensive video library.
+The project currently includes:
 
-You can also watch bite-sized lessons with real-world projects on [Laravel Learn](https://laravel.com/learn), where you will be guided through building a Laravel application from scratch while learning PHP fundamentals.
+- Laravel application setup
+- Inertia React frontend
+- Laravel Breeze authentication
+- SQLite database setup
+- Initial migrations
 
-## Agentic Development
+## Roadmap
 
-Laravel's predictable structure and conventions make it ideal for AI coding agents like Claude Code, Cursor, and GitHub Copilot. Install [Laravel Boost](https://laravel.com/docs/ai) to supercharge your AI workflow:
+### Phase 1 - Foundation
+
+- Laravel setup
+- Authentication
+- React/Inertia setup
+- Basic project structure
+
+### Phase 2 - Multi-Tenancy
+
+- Workspaces
+- Workspace membership
+- User roles inside workspaces
+- Workspace switching
+
+### Phase 3 - Ticketing
+
+- Tickets
+- Ticket statuses
+- Ticket priorities
+- Assignment to support agents
+
+### Phase 4 - Collaboration
+
+- Comments
+- Internal notes
+- Activity logs
+- Notifications
+
+### Phase 5 - AI Features
+
+- AI ticket summaries
+- AI response suggestions
+- AI category detection
+- AI sentiment detection
+
+### Phase 6 - Production Readiness
+
+- Tests
+- Docker
+- CI/CD
+- Deployment
+- Demo accounts
+- Screenshots
+
+## Local Setup
 
 ```bash
-composer require laravel/boost --dev
-
-php artisan boost:install
-```
-
-Boost provides your agent 15+ tools and skills that help agents build Laravel applications while following best practices.
-
-## Contributing
-
-Thank you for considering contributing to the Laravel framework! The contribution guide can be found in the [Laravel documentation](https://laravel.com/docs/contributions).
-
-## Code of Conduct
-
-In order to ensure that the Laravel community is welcoming to all, please review and abide by the [Code of Conduct](https://laravel.com/docs/contributions#code-of-conduct).
-
-## Security Vulnerabilities
-
-If you discover a security vulnerability within Laravel, please send an e-mail to Taylor Otwell via [taylor@laravel.com](mailto:taylor@laravel.com). All security vulnerabilities will be promptly addressed.
-
-## License
-
-The Laravel framework is open-sourced software licensed under the [MIT license](https://opensource.org/licenses/MIT).
+composer install
+npm install
+cp .env.example .env
+php artisan key:generate
+php artisan migrate
+npm run build
+php artisan serve
