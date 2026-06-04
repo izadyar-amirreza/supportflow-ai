@@ -13,6 +13,9 @@ use Illuminate\Validation\Rules;
 use Illuminate\Validation\ValidationException;
 use Inertia\Inertia;
 use Inertia\Response;
+use App\Models\Workspace;
+use App\Models\WorkspaceMember;
+use Illuminate\Support\Str;
 
 class RegisteredUserController extends Controller
 {
@@ -41,6 +44,19 @@ class RegisteredUserController extends Controller
             'name' => $request->name,
             'email' => $request->email,
             'password' => Hash::make($request->password),
+        ]);
+
+        $workspace = Workspace::create([
+            'owner_id' => $user->id,
+            'name' => $user->name . "'s Workspace",
+            'slug' => Str::slug($user->name . '-workspace') . '-' . Str::lower(Str::random(6)),
+        ]);
+
+        WorkspaceMember::create([
+            'workspace_id' => $workspace->id,
+            'user_id' => $user->id,
+            'role' => 'owner',
+            'joined_at' => now(),
         ]);
 
         event(new Registered($user));

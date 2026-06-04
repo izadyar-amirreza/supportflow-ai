@@ -15,7 +15,15 @@ Route::get('/', function () {
 });
 
 Route::get('/dashboard', function () {
-    return Inertia::render('Dashboard');
+    $membership = auth()->user()
+        ->workspaceMemberships()
+        ->with('workspace')
+        ->first();
+
+    return Inertia::render('Dashboard', [
+        'workspace' => $membership?->workspace,
+        'workspaceRole' => $membership?->role,
+    ]);
 })->middleware(['auth', 'verified'])->name('dashboard');
 
 Route::middleware('auth')->group(function () {
