@@ -9,6 +9,8 @@ export default function Index({
         search: '',
         status: 'all',
         priority: 'all',
+        sort: 'latest',
+        per_page: 10,
     },
 }) {
     const createForm = useForm({
@@ -21,6 +23,8 @@ export default function Index({
         search: filters.search ?? '',
         status: filters.status ?? 'all',
         priority: filters.priority ?? 'all',
+        sort: filters.sort ?? 'latest',
+        per_page: filters.per_page ?? 10,
     });
 
     const submitTicket = (event) => {
@@ -40,6 +44,8 @@ export default function Index({
                 search: filterForm.data.search,
                 status: filterForm.data.status,
                 priority: filterForm.data.priority,
+                sort: filterForm.data.sort,
+                per_page: filterForm.data.per_page,
             },
             {
                 preserveState: true,
@@ -53,6 +59,8 @@ export default function Index({
             search: '',
             status: 'all',
             priority: 'all',
+            sort: 'latest',
+            per_page: 10,
         });
 
         router.get(
@@ -210,22 +218,22 @@ export default function Index({
                             <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-center">
                                 <div>
                                     <h3 className="text-lg font-semibold text-gray-900">
-                                        Filter tickets
+                                        Filter and sort tickets
                                     </h3>
 
                                     <p className="mt-1 text-sm text-gray-600">
-                                        Search tickets by title, description, status, or priority.
+                                        Search, filter, sort, and paginate tickets in the current workspace.
                                     </p>
                                 </div>
 
                                 <p className="text-sm text-gray-500">
-                                    Results: {tickets.length}
+                                    Showing {tickets.from ?? 0}–{tickets.to ?? 0} of {tickets.total}
                                 </p>
                             </div>
 
                             <form
                                 onSubmit={applyFilters}
-                                className="mt-6 grid gap-4 md:grid-cols-4"
+                                className="mt-6 grid gap-4 md:grid-cols-6"
                             >
                                 <div className="md:col-span-2">
                                     <label className="block text-sm font-medium text-gray-700">
@@ -283,12 +291,52 @@ export default function Index({
                                     </select>
                                 </div>
 
-                                <div className="flex gap-3 md:col-span-4">
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-700">
+                                        Sort
+                                    </label>
+
+                                    <select
+                                        value={filterForm.data.sort}
+                                        onChange={(event) =>
+                                            filterForm.setData('sort', event.target.value)
+                                        }
+                                        className="mt-1 w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
+                                    >
+                                        <option value="latest">Newest first</option>
+                                        <option value="oldest">Oldest first</option>
+                                        <option value="title_asc">Title A-Z</option>
+                                        <option value="title_desc">Title Z-A</option>
+                                        <option value="priority_desc">Priority high-low</option>
+                                        <option value="priority_asc">Priority low-high</option>
+                                    </select>
+                                </div>
+
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-700">
+                                        Per page
+                                    </label>
+
+                                    <select
+                                        value={filterForm.data.per_page}
+                                        onChange={(event) =>
+                                            filterForm.setData('per_page', Number(event.target.value))
+                                        }
+                                        className="mt-1 w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
+                                    >
+                                        <option value={5}>5</option>
+                                        <option value={10}>10</option>
+                                        <option value={25}>25</option>
+                                        <option value={50}>50</option>
+                                    </select>
+                                </div>
+
+                                <div className="flex gap-3 md:col-span-6">
                                     <button
                                         type="submit"
                                         className="rounded-md bg-gray-900 px-4 py-2 text-sm font-semibold text-white hover:bg-gray-700"
                                     >
-                                        Apply Filters
+                                        Apply
                                     </button>
 
                                     <button
@@ -310,8 +358,8 @@ export default function Index({
                             </h3>
 
                             <div className="mt-6 space-y-4">
-                                {tickets.length > 0 ? (
-                                    tickets.map((ticket) => (
+                                {tickets.data.length > 0 ? (
+                                    tickets.data.map((ticket) => (
                                         <div
                                             key={ticket.id}
                                             className="rounded-lg border border-gray-200 p-4"
@@ -358,6 +406,26 @@ export default function Index({
                                     </p>
                                 )}
                             </div>
+
+                            {tickets.links.length > 3 && (
+                                <div className="mt-6 flex flex-wrap gap-2">
+                                    {tickets.links.map((link, index) => (
+                                        <Link
+                                            key={index}
+                                            href={link.url ?? '#'}
+                                            preserveScroll
+                                            className={`rounded-md border px-3 py-2 text-sm ${
+                                                link.active
+                                                    ? 'border-gray-900 bg-gray-900 text-white'
+                                                    : link.url
+                                                        ? 'border-gray-300 text-gray-700 hover:bg-gray-50'
+                                                        : 'cursor-not-allowed border-gray-200 text-gray-400'
+                                            }`}
+                                            dangerouslySetInnerHTML={{ __html: link.label }}
+                                        />
+                                    ))}
+                                </div>
+                            )}
                         </div>
                     </div>
                 </div>

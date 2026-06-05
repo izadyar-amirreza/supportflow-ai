@@ -23,6 +23,8 @@ class TicketController extends Controller
         'search' => $request->input('search', ''),
         'status' => $request->input('status', 'all'),
         'priority' => $request->input('priority', 'all'),
+        'sort' => $request->input('sort', 'latest'),
+        'per_page' => (int) $request->input('per_page', 10),
     ];
 
     if (! in_array($filters['status'], ['all', 'open', 'pending', 'resolved', 'closed'], true)) {
@@ -31,6 +33,14 @@ class TicketController extends Controller
 
     if (! in_array($filters['priority'], ['all', 'low', 'medium', 'high', 'urgent'], true)) {
         $filters['priority'] = 'all';
+    }
+
+    if (! in_array($filters['sort'], ['latest', 'oldest', 'title_asc', 'title_desc', 'priority_desc', 'priority_asc'], true)) {
+        $filters['sort'] = 'latest';
+    }
+
+    if (! in_array($filters['per_page'], [5, 10, 25, 50], true)) {
+        $filters['per_page'] = 10;
     }
 
     $ticketQuery = Ticket::query()
@@ -53,10 +63,35 @@ class TicketController extends Controller
         $ticketQuery->where('priority', $filters['priority']);
     }
 
+    match ($filters['sort']) {
+        'oldest' => $ticketQuery->oldest(),
+        'title_asc' => $ticketQuery->orderBy('title'),
+        'title_desc' => $ticketQuery->orderByDesc('title'),
+        'priority_desc' => $ticketQuery->orderByRaw("
+            CASE priority
+                WHEN 'urgent' THEN 4
+                WHEN 'high' THEN 3
+                WHEN 'medium' THEN 2
+                WHEN 'low' THEN 1
+                ELSE 0
+            END DESC
+        ")->latest(),
+        'priority_asc' => $ticketQuery->orderByRaw("
+            CASE priority
+                WHEN 'urgent' THEN 4
+                WHEN 'high' THEN 3
+                WHEN 'medium' THEN 2
+                WHEN 'low' THEN 1
+                ELSE 0
+            END ASC
+        ")->latest(),
+        default => $ticketQuery->latest(),
+    };
+
     $tickets = $ticketQuery
-        ->latest()
-        ->get()
-        ->map(fn (Ticket $ticket) => [
+        ->paginate($filters['per_page'])
+        ->withQueryString()
+        ->through(fn (Ticket $ticket) => [
             'id' => $ticket->id,
             'title' => $ticket->title,
             'description' => $ticket->description,
