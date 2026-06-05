@@ -1,5 +1,5 @@
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
-import { Head, useForm } from '@inertiajs/react';
+import { Head, Link, useForm } from '@inertiajs/react';
 
 export default function Index({ workspace, workspaceRole, tickets }) {
     const { data, setData, post, processing, errors, reset } = useForm({
@@ -151,9 +151,12 @@ export default function Index({ workspace, workspaceRole, tickets }) {
                                         >
                                             <div className="flex flex-col justify-between gap-3 sm:flex-row sm:items-start">
                                                 <div>
-                                                    <h4 className="text-base font-semibold text-gray-900">
+                                                    <Link
+                                                        href={route('tickets.show', ticket.id)}
+                                                        className="text-base font-semibold text-gray-900 hover:text-indigo-600"
+                                                    >
                                                         #{ticket.id} {ticket.title}
-                                                    </h4>
+                                                    </Link>
 
                                                     {ticket.description && (
                                                         <p className="mt-2 text-sm text-gray-600">

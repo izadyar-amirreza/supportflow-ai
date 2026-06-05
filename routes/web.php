@@ -60,6 +60,13 @@ Route::middleware(['auth', 'verified'])->group(function () {
 
     Route::post('/tickets', [TicketController::class, 'store'])
         ->name('tickets.store');
+
+    Route::get('/tickets/{ticket}', [TicketController::class, 'show'])
+    ->name('tickets.show');
+
+    Route::post('/tickets/{ticket}/comments', [TicketController::class, 'comment'])
+    ->name('tickets.comments.store');
+
 });
 
 Route::middleware('auth')->group(function () {

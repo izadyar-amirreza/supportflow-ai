@@ -4,7 +4,7 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
-
+use Illuminate\Database\Eloquent\Relations\HasMany;
 class Ticket extends Model
 {
     protected $fillable = [
@@ -31,4 +31,10 @@ class Ticket extends Model
     {
         return $this->belongsTo(User::class, 'assigned_to');
     }
+
+        public function comments(): HasMany
+    {
+        return $this->hasMany(TicketComment::class);
+    }
+
 }
