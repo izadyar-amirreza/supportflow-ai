@@ -12,7 +12,7 @@ use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
 use Inertia\Inertia;
 use Inertia\Response;
-
+use App\Services\FakeAiTicketSummaryService;
 class TicketController extends Controller
 {
     public function index(Request $request): Response
@@ -223,6 +223,8 @@ class TicketController extends Controller
                 'id' => $ticket->id,
                 'title' => $ticket->title,
                 'description' => $ticket->description,
+                'ai_summary' => $ticket->ai_summary,
+                'ai_summary_generated_at' => $ticket->ai_summary_generated_at?->format('Y-m-d H:i'),
                 'status' => $ticket->status,
                 'priority' => $ticket->priority,
                 'creator' => $ticket->creator?->name,
@@ -326,6 +328,40 @@ class TicketController extends Controller
                 newValue: $newAssigneeName,
             );
         }
+
+        return redirect()->route('tickets.show', $ticket);
+    }
+
+        public function generateAiSummary(
+        Request $request,
+        Ticket $ticket,
+        FakeAiTicketSummaryService $summaryService,
+    ): RedirectResponse {
+        $membership = $this->currentMembership($request);
+
+        abort_unless($ticket->workspace_id === $membership->workspace_id, 404);
+        abort_unless($this->canManageTicket($membership), 403);
+
+        $comments = $ticket
+            ->comments()
+            ->oldest()
+            ->get();
+
+        $summary = $summaryService->summarize($ticket, $comments);
+
+        $ticket->update([
+            'ai_summary' => $summary,
+            'ai_summary_generated_at' => now(),
+        ]);
+
+        $this->logActivity(
+            ticket: $ticket,
+            userId: $request->user()->id,
+            action: 'ai_summary_generated',
+            description: 'AI summary was generated.',
+            oldValue: null,
+            newValue: 'AI summary generated',
+        );
 
         return redirect()->route('tickets.show', $ticket);
     }

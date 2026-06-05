@@ -125,6 +125,9 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::patch('/tickets/{ticket}', [TicketController::class, 'update'])
         ->name('tickets.update');
 
+    Route::post('/tickets/{ticket}/ai-summary', [TicketController::class, 'generateAiSummary'])
+    ->name('tickets.ai-summary.generate');
+
     Route::post('/tickets/{ticket}/comments', [TicketController::class, 'comment'])
         ->name('tickets.comments.store');
 });

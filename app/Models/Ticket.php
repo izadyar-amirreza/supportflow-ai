@@ -15,7 +15,16 @@ class Ticket extends Model
         'description',
         'status',
         'priority',
+        'ai_summary',
+        'ai_summary_generated_at',
     ];
+
+        protected function casts(): array
+    {
+        return [
+            'ai_summary_generated_at' => 'datetime',
+        ];
+    }
 
     public function workspace(): BelongsTo
     {
