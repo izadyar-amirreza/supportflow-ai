@@ -16,103 +16,113 @@ use Inertia\Response;
 class TicketController extends Controller
 {
     public function index(Request $request): Response
-{
-    $membership = $this->currentMembership($request);
+    {
+        $membership = $this->currentMembership($request);
 
-    $filters = [
-        'search' => $request->input('search', ''),
-        'status' => $request->input('status', 'all'),
-        'priority' => $request->input('priority', 'all'),
-        'sort' => $request->input('sort', 'latest'),
-        'per_page' => (int) $request->input('per_page', 10),
-    ];
+        $filters = [
+            'search' => $request->input('search', ''),
+            'status' => $request->input('status', 'all'),
+            'priority' => $request->input('priority', 'all'),
+            'sort' => $request->input('sort', 'latest'),
+            'per_page' => (int) $request->input('per_page', 10),
+        ];
 
-    if (! in_array($filters['status'], ['all', 'open', 'pending', 'resolved', 'closed'], true)) {
-        $filters['status'] = 'all';
-    }
+        if (! in_array($filters['status'], ['all', 'open', 'pending', 'resolved', 'closed'], true)) {
+            $filters['status'] = 'all';
+        }
 
-    if (! in_array($filters['priority'], ['all', 'low', 'medium', 'high', 'urgent'], true)) {
-        $filters['priority'] = 'all';
-    }
+        if (! in_array($filters['priority'], ['all', 'low', 'medium', 'high', 'urgent'], true)) {
+            $filters['priority'] = 'all';
+        }
 
-    if (! in_array($filters['sort'], ['latest', 'oldest', 'title_asc', 'title_desc', 'priority_desc', 'priority_asc'], true)) {
-        $filters['sort'] = 'latest';
-    }
+        if (! in_array($filters['sort'], ['latest', 'oldest', 'title_asc', 'title_desc', 'priority_desc', 'priority_asc'], true)) {
+            $filters['sort'] = 'latest';
+        }
 
-    if (! in_array($filters['per_page'], [5, 10, 25, 50], true)) {
-        $filters['per_page'] = 10;
-    }
+        if (! in_array($filters['per_page'], [5, 10, 25, 50], true)) {
+            $filters['per_page'] = 10;
+        }
 
-    $ticketQuery = Ticket::query()
-        ->where('workspace_id', $membership->workspace_id)
-        ->with(['creator:id,name', 'assignee:id,name']);
+        $ticketQuery = Ticket::query()
+            ->where('workspace_id', $membership->workspace_id)
+            ->with(['creator:id,name,email', 'assignee:id,name,email']);
 
-    if ($filters['search'] !== '') {
-        $ticketQuery->where(function ($query) use ($filters) {
-            $query
-                ->where('title', 'like', '%' . $filters['search'] . '%')
-                ->orWhere('description', 'like', '%' . $filters['search'] . '%');
-        });
-    }
+        if ($filters['search'] !== '') {
+            $ticketQuery->where(function ($query) use ($filters) {
+                $query
+                    ->where('title', 'like', '%' . $filters['search'] . '%')
+                    ->orWhere('description', 'like', '%' . $filters['search'] . '%');
+            });
+        }
 
-    if ($filters['status'] !== 'all') {
-        $ticketQuery->where('status', $filters['status']);
-    }
+        if ($filters['status'] !== 'all') {
+            $ticketQuery->where('status', $filters['status']);
+        }
 
-    if ($filters['priority'] !== 'all') {
-        $ticketQuery->where('priority', $filters['priority']);
-    }
+        if ($filters['priority'] !== 'all') {
+            $ticketQuery->where('priority', $filters['priority']);
+        }
 
-    match ($filters['sort']) {
-        'oldest' => $ticketQuery->oldest(),
-        'title_asc' => $ticketQuery->orderBy('title'),
-        'title_desc' => $ticketQuery->orderByDesc('title'),
-        'priority_desc' => $ticketQuery->orderByRaw("
-            CASE priority
-                WHEN 'urgent' THEN 4
-                WHEN 'high' THEN 3
-                WHEN 'medium' THEN 2
-                WHEN 'low' THEN 1
-                ELSE 0
-            END DESC
-        ")->latest(),
-        'priority_asc' => $ticketQuery->orderByRaw("
-            CASE priority
-                WHEN 'urgent' THEN 4
-                WHEN 'high' THEN 3
-                WHEN 'medium' THEN 2
-                WHEN 'low' THEN 1
-                ELSE 0
-            END ASC
-        ")->latest(),
-        default => $ticketQuery->latest(),
-    };
+        match ($filters['sort']) {
+            'oldest' => $ticketQuery->oldest(),
+            'title_asc' => $ticketQuery->orderBy('title'),
+            'title_desc' => $ticketQuery->orderByDesc('title'),
+            'priority_desc' => $ticketQuery->orderByRaw("
+                CASE priority
+                    WHEN 'urgent' THEN 4
+                    WHEN 'high' THEN 3
+                    WHEN 'medium' THEN 2
+                    WHEN 'low' THEN 1
+                    ELSE 0
+                END DESC
+            ")->latest(),
+            'priority_asc' => $ticketQuery->orderByRaw("
+                CASE priority
+                    WHEN 'urgent' THEN 4
+                    WHEN 'high' THEN 3
+                    WHEN 'medium' THEN 2
+                    WHEN 'low' THEN 1
+                    ELSE 0
+                END ASC
+            ")->latest(),
+            default => $ticketQuery->latest(),
+        };
 
-    $tickets = $ticketQuery
-        ->paginate($filters['per_page'])
-        ->withQueryString()
-        ->through(fn (Ticket $ticket) => [
-            'id' => $ticket->id,
-            'title' => $ticket->title,
-            'description' => $ticket->description,
-            'status' => $ticket->status,
-            'priority' => $ticket->priority,
-            'creator' => $ticket->creator?->name,
-            'assignee' => $ticket->assignee?->name,
-            'created_at' => $ticket->created_at?->format('Y-m-d H:i'),
+        $memberRoles = WorkspaceMember::query()
+            ->where('workspace_id', $membership->workspace_id)
+            ->pluck('role', 'user_id');
+
+        $tickets = $ticketQuery
+            ->paginate($filters['per_page'])
+            ->withQueryString()
+            ->through(fn (Ticket $ticket) => [
+                'id' => $ticket->id,
+                'title' => $ticket->title,
+                'description' => $ticket->description,
+                'status' => $ticket->status,
+                'priority' => $ticket->priority,
+                'creator' => $ticket->creator?->name,
+                'creator_role' => $ticket->creator
+                    ? $memberRoles->get($ticket->creator->id)
+                    : null,
+                'assignee' => $ticket->assignee?->name,
+                'assignee_role' => $ticket->assignee
+                    ? $memberRoles->get($ticket->assignee->id)
+                    : null,
+                'created_at' => $ticket->created_at?->format('Y-m-d H:i'),
+            ]);
+
+        return Inertia::render('Tickets/Index', [
+            'workspace' => [
+                'id' => $membership->workspace->id,
+                'name' => $membership->workspace->name,
+                'slug' => $membership->workspace->slug,
+            ],
+            'workspaceRole' => $membership->role,
+            'tickets' => $tickets,
+            'filters' => $filters,
         ]);
-
-    return Inertia::render('Tickets/Index', [
-        'workspace' => [
-            'id' => $membership->workspace->id,
-            'name' => $membership->workspace->name,
-            'slug' => $membership->workspace->slug,
-        ],
-        'workspaceRole' => $membership->role,
-        'tickets' => $tickets,
-        'filters' => $filters,
-    ]);
-}
+    }
 
     public function store(Request $request): RedirectResponse
     {
@@ -164,19 +174,24 @@ class TicketController extends Controller
             $commentsQuery->where('is_internal', false);
         }
 
-        $ticket->load(['creator:id,name', 'assignee:id,name']);
+        $ticket->load(['creator:id,name,email', 'assignee:id,name,email']);
 
-        $agents = WorkspaceMember::query()
+        $workspaceMembers = WorkspaceMember::query()
             ->where('workspace_id', $membership->workspace_id)
-            ->whereIn('role', ['owner', 'admin', 'agent'])
             ->with('user:id,name,email')
-            ->get()
+            ->get();
+
+        $memberRoles = $workspaceMembers->pluck('role', 'user_id');
+
+        $agents = $workspaceMembers
+            ->whereIn('role', ['owner', 'admin', 'agent'])
             ->map(fn (WorkspaceMember $member) => [
                 'id' => $member->user->id,
                 'name' => $member->user->name,
                 'email' => $member->user->email,
                 'role' => $member->role,
-            ]);
+            ])
+            ->values();
 
         $activities = $canViewInternalNotes
             ? $ticket->activities()
@@ -211,7 +226,13 @@ class TicketController extends Controller
                 'status' => $ticket->status,
                 'priority' => $ticket->priority,
                 'creator' => $ticket->creator?->name,
+                'creator_role' => $ticket->creator
+                    ? $memberRoles->get($ticket->creator->id)
+                    : null,
                 'assignee' => $ticket->assignee?->name,
+                'assignee_role' => $ticket->assignee
+                    ? $memberRoles->get($ticket->assignee->id)
+                    : null,
                 'assigned_to' => $ticket->assigned_to,
                 'created_at' => $ticket->created_at?->format('Y-m-d H:i'),
             ],
@@ -240,13 +261,17 @@ class TicketController extends Controller
         ]);
 
         if (! empty($validated['assigned_to'])) {
-            $isWorkspaceAgent = WorkspaceMember::query()
+            $isAssignableMember = WorkspaceMember::query()
                 ->where('workspace_id', $membership->workspace_id)
                 ->where('user_id', $validated['assigned_to'])
                 ->whereIn('role', ['owner', 'admin', 'agent'])
                 ->exists();
 
-            abort_unless($isWorkspaceAgent, 422);
+            if (! $isAssignableMember) {
+                return back()->withErrors([
+                    'assigned_to' => 'The selected assignee must be an owner, admin, or agent in this workspace.',
+                ]);
+            }
         }
 
         $oldStatus = $ticket->status;

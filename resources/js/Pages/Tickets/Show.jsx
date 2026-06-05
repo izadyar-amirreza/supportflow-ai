@@ -89,11 +89,22 @@ export default function Show({
                                             )}
 
                                             <p className="mt-4 text-sm text-gray-500">
-                                                Created by {ticket.creator ?? 'Unknown'} on {ticket.created_at}
+                                                Created by {ticket.creator ?? 'Unknown'}
+                                                {ticket.creator_role && (
+                                                    <span className="ml-1 rounded-full bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-600">
+                                                        {ticket.creator_role}
+                                                    </span>
+                                                )}
+                                                {' '}on {ticket.created_at}
                                             </p>
 
                                             <p className="mt-1 text-sm text-gray-500">
                                                 Assigned to {ticket.assignee ?? 'Unassigned'}
+                                                {ticket.assignee_role && (
+                                                    <span className="ml-1 rounded-full bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-600">
+                                                        {ticket.assignee_role}
+                                                    </span>
+                                                )}
                                             </p>
                                         </div>
 
@@ -276,7 +287,7 @@ export default function Show({
 
                                                     {agents.map((agent) => (
                                                         <option key={agent.id} value={agent.id}>
-                                                            {agent.name} ({agent.role})
+                                                            {agent.name} — {agent.role} — {agent.email}
                                                         </option>
                                                     ))}
                                                 </select>
