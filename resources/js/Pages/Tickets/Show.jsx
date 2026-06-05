@@ -9,6 +9,7 @@ export default function Show({
     agents,
     ticket,
     comments,
+    activities = [],
 }) {
     const commentForm = useForm({
         body: '',
@@ -295,6 +296,54 @@ export default function Show({
                                                 Update Ticket
                                             </button>
                                         </form>
+                                    </div>
+                                </div>
+                            )}
+                            {canViewInternalNotes && (
+                                <div className="overflow-hidden bg-white shadow-sm sm:rounded-lg">
+                                    <div className="p-6">
+                                        <h3 className="text-lg font-semibold text-gray-900">
+                                            Activity Log
+                                        </h3>
+
+                                        <div className="mt-6 space-y-4">
+                                            {activities.length > 0 ? (
+                                                activities.map((activity) => (
+                                                    <div
+                                                        key={activity.id}
+                                                        className="rounded-lg border border-gray-200 p-4"
+                                                    >
+                                                        <div className="flex items-center justify-between gap-4">
+                                                            <p className="text-sm font-semibold text-gray-900">
+                                                                {activity.description}
+                                                            </p>
+
+                                                            <span className="text-xs text-gray-500">
+                                                                {activity.created_at}
+                                                            </span>
+                                                        </div>
+
+                                                        <p className="mt-2 text-xs text-gray-500">
+                                                            By {activity.user ?? 'System'}
+                                                        </p>
+
+                                                        {(activity.old_value || activity.new_value) && (
+                                                            <p className="mt-2 text-sm text-gray-600">
+                                                                {activity.old_value ?? 'None'} → {activity.new_value ?? 'None'}
+                                                            </p>
+                                                        )}
+
+                                                        <p className="mt-2 text-xs text-gray-400">
+                                                            Action: {activity.action}
+                                                        </p>
+                                                    </div>
+                                                ))
+                                            ) : (
+                                                <p className="text-sm text-gray-600">
+                                                    No activity recorded yet.
+                                                </p>
+                                            )}
+                                        </div>
                                     </div>
                                 </div>
                             )}

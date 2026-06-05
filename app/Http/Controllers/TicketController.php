@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\Ticket;
+use App\Models\TicketActivity;
 use App\Models\TicketComment;
 use App\Models\User;
 use App\Models\WorkspaceMember;
@@ -55,7 +56,7 @@ class TicketController extends Controller
             'priority' => ['required', Rule::in(['low', 'medium', 'high', 'urgent'])],
         ]);
 
-        Ticket::create([
+        $ticket = Ticket::create([
             'workspace_id' => $membership->workspace_id,
             'created_by' => $request->user()->id,
             'assigned_to' => null,
@@ -64,6 +65,15 @@ class TicketController extends Controller
             'status' => 'open',
             'priority' => $validated['priority'],
         ]);
+
+        $this->logActivity(
+            ticket: $ticket,
+            userId: $request->user()->id,
+            action: 'ticket_created',
+            description: 'Ticket was created.',
+            oldValue: null,
+            newValue: $ticket->title,
+        );
 
         return redirect()->route('tickets.index');
     }
@@ -100,6 +110,22 @@ class TicketController extends Controller
                 'role' => $member->role,
             ]);
 
+        $activities = $canViewInternalNotes
+            ? $ticket->activities()
+                ->with('user:id,name')
+                ->latest()
+                ->get()
+                ->map(fn (TicketActivity $activity) => [
+                    'id' => $activity->id,
+                    'action' => $activity->action,
+                    'description' => $activity->description,
+                    'old_value' => $activity->old_value,
+                    'new_value' => $activity->new_value,
+                    'user' => $activity->user?->name,
+                    'created_at' => $activity->created_at?->format('Y-m-d H:i'),
+                ])
+            : [];
+
         return Inertia::render('Tickets/Show', [
             'workspace' => [
                 'id' => $membership->workspace->id,
@@ -128,6 +154,7 @@ class TicketController extends Controller
                 'user' => $comment->user?->name,
                 'created_at' => $comment->created_at?->format('Y-m-d H:i'),
             ]),
+            'activities' => $activities,
         ]);
     }
 
@@ -154,11 +181,58 @@ class TicketController extends Controller
             abort_unless($isWorkspaceAgent, 422);
         }
 
+        $oldStatus = $ticket->status;
+        $oldPriority = $ticket->priority;
+        $oldAssignedTo = $ticket->assigned_to;
+
+        $newAssignedTo = $validated['assigned_to'] ?? null;
+
         $ticket->update([
             'status' => $validated['status'],
             'priority' => $validated['priority'],
-            'assigned_to' => $validated['assigned_to'] ?? null,
+            'assigned_to' => $newAssignedTo,
         ]);
+
+        if ($oldStatus !== $validated['status']) {
+            $this->logActivity(
+                ticket: $ticket,
+                userId: $request->user()->id,
+                action: 'status_changed',
+                description: 'Ticket status was changed.',
+                oldValue: $oldStatus,
+                newValue: $validated['status'],
+            );
+        }
+
+        if ($oldPriority !== $validated['priority']) {
+            $this->logActivity(
+                ticket: $ticket,
+                userId: $request->user()->id,
+                action: 'priority_changed',
+                description: 'Ticket priority was changed.',
+                oldValue: $oldPriority,
+                newValue: $validated['priority'],
+            );
+        }
+
+        if ((int) $oldAssignedTo !== (int) $newAssignedTo) {
+            $oldAssigneeName = $oldAssignedTo
+                ? User::find($oldAssignedTo)?->name
+                : 'Unassigned';
+
+            $newAssigneeName = $newAssignedTo
+                ? User::find($newAssignedTo)?->name
+                : 'Unassigned';
+
+            $this->logActivity(
+                ticket: $ticket,
+                userId: $request->user()->id,
+                action: 'assignment_changed',
+                description: 'Ticket assignment was changed.',
+                oldValue: $oldAssigneeName,
+                newValue: $newAssigneeName,
+            );
+        }
 
         return redirect()->route('tickets.show', $ticket);
     }
@@ -186,6 +260,17 @@ class TicketController extends Controller
             'body' => $validated['body'],
             'is_internal' => $isInternal,
         ]);
+
+        $this->logActivity(
+            ticket: $ticket,
+            userId: $request->user()->id,
+            action: $isInternal ? 'internal_note_added' : 'comment_added',
+            description: $isInternal
+                ? 'An internal note was added.'
+                : 'A public comment was added.',
+            oldValue: null,
+            newValue: null,
+        );
 
         return redirect()->route('tickets.show', $ticket);
     }
@@ -219,5 +304,25 @@ class TicketController extends Controller
     private function canManageTicket(WorkspaceMember $membership): bool
     {
         return in_array($membership->role, ['owner', 'admin', 'agent'], true);
+    }
+
+    private function logActivity(
+        Ticket $ticket,
+        ?int $userId,
+        string $action,
+        ?string $description = null,
+        ?string $oldValue = null,
+        ?string $newValue = null,
+        ?array $meta = null,
+    ): void {
+        TicketActivity::create([
+            'ticket_id' => $ticket->id,
+            'user_id' => $userId,
+            'action' => $action,
+            'description' => $description,
+            'old_value' => $oldValue,
+            'new_value' => $newValue,
+            'meta' => $meta,
+        ]);
     }
 }
