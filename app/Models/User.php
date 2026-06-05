@@ -36,9 +36,19 @@ class User extends Authenticatable
         return $this->hasMany(Workspace::class, 'owner_id');
     }
 
-    public function workspaceMemberships(): HasMany
+        public function workspaceMemberships(): HasMany
     {
         return $this->hasMany(WorkspaceMember::class);
+    }
+
+        public function createdTickets(): HasMany
+    {
+        return $this->hasMany(Ticket::class, 'created_by');
+    }
+
+        public function assignedTickets(): HasMany
+    {
+        return $this->hasMany(Ticket::class, 'assigned_to');
     }
 
 }

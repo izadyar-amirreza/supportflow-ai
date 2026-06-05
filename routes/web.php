@@ -1,10 +1,11 @@
 <?php
 
 use App\Http\Controllers\ProfileController;
+use App\Http\Controllers\TicketController;
+use App\Http\Controllers\WorkspaceController;
 use Illuminate\Foundation\Application;
 use Illuminate\Support\Facades\Route;
 use Inertia\Inertia;
-use App\Http\Controllers\WorkspaceController;
 
 Route::get('/', function () {
     return Inertia::render('Welcome', [
@@ -26,7 +27,9 @@ Route::middleware(['auth', 'verified'])->group(function () {
             ->with('workspace');
 
         $membership = $currentWorkspaceId
-            ? (clone $membershipQuery)->where('workspace_id', $currentWorkspaceId)->first()
+            ? (clone $membershipQuery)
+                ->where('workspace_id', $currentWorkspaceId)
+                ->first()
             : null;
 
         if (! $membership) {
@@ -51,12 +54,23 @@ Route::middleware(['auth', 'verified'])->group(function () {
 
     Route::post('/workspaces/{workspace}/switch', [WorkspaceController::class, 'switch'])
         ->name('workspaces.switch');
+
+    Route::get('/tickets', [TicketController::class, 'index'])
+        ->name('tickets.index');
+
+    Route::post('/tickets', [TicketController::class, 'store'])
+        ->name('tickets.store');
 });
 
 Route::middleware('auth')->group(function () {
-    Route::get('/profile', [ProfileController::class, 'edit'])->name('profile.edit');
-    Route::patch('/profile', [ProfileController::class, 'update'])->name('profile.update');
-    Route::delete('/profile', [ProfileController::class, 'destroy'])->name('profile.destroy');
+    Route::get('/profile', [ProfileController::class, 'edit'])
+        ->name('profile.edit');
+
+    Route::patch('/profile', [ProfileController::class, 'update'])
+        ->name('profile.update');
+
+    Route::delete('/profile', [ProfileController::class, 'destroy'])
+        ->name('profile.destroy');
 });
 
 require __DIR__.'/auth.php';

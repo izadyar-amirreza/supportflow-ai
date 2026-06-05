@@ -23,4 +23,10 @@ class Workspace extends Model
     {
         return $this->hasMany(WorkspaceMember::class);
     }
+
+        public function tickets(): HasMany
+    {
+        return $this->hasMany(Ticket::class);
+    }
+
 }
