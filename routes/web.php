@@ -7,6 +7,7 @@ use App\Models\Ticket;
 use Illuminate\Foundation\Application;
 use Illuminate\Support\Facades\Route;
 use Inertia\Inertia;
+use App\Http\Controllers\WorkspaceMemberController;
 
 Route::get('/', function () {
     return Inertia::render('Welcome', [
@@ -99,6 +100,18 @@ Route::middleware(['auth', 'verified'])->group(function () {
 
     Route::post('/workspaces/{workspace}/switch', [WorkspaceController::class, 'switch'])
         ->name('workspaces.switch');
+
+    Route::get('/workspace/members', [WorkspaceMemberController::class, 'index'])
+    ->name('workspace-members.index');
+
+    Route::post('/workspace/members', [WorkspaceMemberController::class, 'store'])
+        ->name('workspace-members.store');
+
+    Route::patch('/workspace/members/{member}', [WorkspaceMemberController::class, 'update'])
+        ->name('workspace-members.update');
+
+    Route::delete('/workspace/members/{member}', [WorkspaceMemberController::class, 'destroy'])
+        ->name('workspace-members.destroy');    
 
     Route::get('/tickets', [TicketController::class, 'index'])
         ->name('tickets.index');
