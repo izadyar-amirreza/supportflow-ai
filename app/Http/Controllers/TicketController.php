@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\Ticket;
 use App\Models\TicketComment;
+use App\Models\User;
 use App\Models\WorkspaceMember;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -74,6 +75,7 @@ class TicketController extends Controller
         abort_unless($ticket->workspace_id === $membership->workspace_id, 404);
 
         $canViewInternalNotes = $this->canViewInternalNotes($membership);
+        $canManageTicket = $this->canManageTicket($membership);
 
         $commentsQuery = $ticket
             ->comments()
@@ -86,6 +88,18 @@ class TicketController extends Controller
 
         $ticket->load(['creator:id,name', 'assignee:id,name']);
 
+        $agents = WorkspaceMember::query()
+            ->where('workspace_id', $membership->workspace_id)
+            ->whereIn('role', ['owner', 'admin', 'agent'])
+            ->with('user:id,name,email')
+            ->get()
+            ->map(fn (WorkspaceMember $member) => [
+                'id' => $member->user->id,
+                'name' => $member->user->name,
+                'email' => $member->user->email,
+                'role' => $member->role,
+            ]);
+
         return Inertia::render('Tickets/Show', [
             'workspace' => [
                 'id' => $membership->workspace->id,
@@ -94,6 +108,8 @@ class TicketController extends Controller
             ],
             'workspaceRole' => $membership->role,
             'canViewInternalNotes' => $canViewInternalNotes,
+            'canManageTicket' => $canManageTicket,
+            'agents' => $agents,
             'ticket' => [
                 'id' => $ticket->id,
                 'title' => $ticket->title,
@@ -102,6 +118,7 @@ class TicketController extends Controller
                 'priority' => $ticket->priority,
                 'creator' => $ticket->creator?->name,
                 'assignee' => $ticket->assignee?->name,
+                'assigned_to' => $ticket->assigned_to,
                 'created_at' => $ticket->created_at?->format('Y-m-d H:i'),
             ],
             'comments' => $commentsQuery->get()->map(fn (TicketComment $comment) => [
@@ -112,6 +129,38 @@ class TicketController extends Controller
                 'created_at' => $comment->created_at?->format('Y-m-d H:i'),
             ]),
         ]);
+    }
+
+    public function update(Request $request, Ticket $ticket): RedirectResponse
+    {
+        $membership = $this->currentMembership($request);
+
+        abort_unless($ticket->workspace_id === $membership->workspace_id, 404);
+        abort_unless($this->canManageTicket($membership), 403);
+
+        $validated = $request->validate([
+            'status' => ['required', Rule::in(['open', 'pending', 'resolved', 'closed'])],
+            'priority' => ['required', Rule::in(['low', 'medium', 'high', 'urgent'])],
+            'assigned_to' => ['nullable', 'integer', 'exists:users,id'],
+        ]);
+
+        if (! empty($validated['assigned_to'])) {
+            $isWorkspaceAgent = WorkspaceMember::query()
+                ->where('workspace_id', $membership->workspace_id)
+                ->where('user_id', $validated['assigned_to'])
+                ->whereIn('role', ['owner', 'admin', 'agent'])
+                ->exists();
+
+            abort_unless($isWorkspaceAgent, 422);
+        }
+
+        $ticket->update([
+            'status' => $validated['status'],
+            'priority' => $validated['priority'],
+            'assigned_to' => $validated['assigned_to'] ?? null,
+        ]);
+
+        return redirect()->route('tickets.show', $ticket);
     }
 
     public function comment(Request $request, Ticket $ticket): RedirectResponse
@@ -163,6 +212,11 @@ class TicketController extends Controller
     }
 
     private function canViewInternalNotes(WorkspaceMember $membership): bool
+    {
+        return in_array($membership->role, ['owner', 'admin', 'agent'], true);
+    }
+
+    private function canManageTicket(WorkspaceMember $membership): bool
     {
         return in_array($membership->role, ['owner', 'admin', 'agent'], true);
     }
