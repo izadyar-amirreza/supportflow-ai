@@ -1,19 +1,68 @@
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
-import { Head, Link, useForm } from '@inertiajs/react';
+import { Head, Link, router, useForm } from '@inertiajs/react';
 
-export default function Index({ workspace, workspaceRole, tickets }) {
-    const { data, setData, post, processing, errors, reset } = useForm({
+export default function Index({
+    workspace,
+    workspaceRole,
+    tickets,
+    filters = {
+        search: '',
+        status: 'all',
+        priority: 'all',
+    },
+}) {
+    const createForm = useForm({
         title: '',
         description: '',
         priority: 'medium',
     });
 
-    const submit = (event) => {
+    const filterForm = useForm({
+        search: filters.search ?? '',
+        status: filters.status ?? 'all',
+        priority: filters.priority ?? 'all',
+    });
+
+    const submitTicket = (event) => {
         event.preventDefault();
 
-        post(route('tickets.store'), {
-            onSuccess: () => reset('title', 'description', 'priority'),
+        createForm.post(route('tickets.store'), {
+            onSuccess: () => createForm.reset('title', 'description', 'priority'),
         });
+    };
+
+    const applyFilters = (event) => {
+        event.preventDefault();
+
+        router.get(
+            route('tickets.index'),
+            {
+                search: filterForm.data.search,
+                status: filterForm.data.status,
+                priority: filterForm.data.priority,
+            },
+            {
+                preserveState: true,
+                replace: true,
+            },
+        );
+    };
+
+    const resetFilters = () => {
+        filterForm.setData({
+            search: '',
+            status: 'all',
+            priority: 'all',
+        });
+
+        router.get(
+            route('tickets.index'),
+            {},
+            {
+                preserveState: true,
+                replace: true,
+            },
+        );
     };
 
     const priorityBadge = (priority) => {
@@ -25,6 +74,17 @@ export default function Index({ workspace, workspaceRole, tickets }) {
         };
 
         return styles[priority] ?? styles.medium;
+    };
+
+    const statusBadge = (status) => {
+        const styles = {
+            open: 'bg-green-100 text-green-700',
+            pending: 'bg-yellow-100 text-yellow-700',
+            resolved: 'bg-blue-100 text-blue-700',
+            closed: 'bg-gray-100 text-gray-700',
+        };
+
+        return styles[status] ?? styles.open;
     };
 
     return (
@@ -50,7 +110,10 @@ export default function Index({ workspace, workspaceRole, tickets }) {
                             </h3>
 
                             <p className="mt-1 text-sm text-gray-600">
-                                Your role: <span className="font-semibold">{workspaceRole}</span>
+                                Your role:{' '}
+                                <span className="font-semibold">
+                                    {workspaceRole}
+                                </span>
                             </p>
                         </div>
                     </div>
@@ -61,7 +124,7 @@ export default function Index({ workspace, workspaceRole, tickets }) {
                                 Create a new ticket
                             </h3>
 
-                            <form onSubmit={submit} className="mt-6 space-y-4">
+                            <form onSubmit={submitTicket} className="mt-6 space-y-4">
                                 <div>
                                     <label className="block text-sm font-medium text-gray-700">
                                         Title
@@ -69,15 +132,17 @@ export default function Index({ workspace, workspaceRole, tickets }) {
 
                                     <input
                                         type="text"
-                                        value={data.title}
-                                        onChange={(event) => setData('title', event.target.value)}
+                                        value={createForm.data.title}
+                                        onChange={(event) =>
+                                            createForm.setData('title', event.target.value)
+                                        }
                                         className="mt-1 w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
                                         placeholder="Example: Customer cannot access dashboard"
                                     />
 
-                                    {errors.title && (
+                                    {createForm.errors.title && (
                                         <p className="mt-2 text-sm text-red-600">
-                                            {errors.title}
+                                            {createForm.errors.title}
                                         </p>
                                     )}
                                 </div>
@@ -88,16 +153,18 @@ export default function Index({ workspace, workspaceRole, tickets }) {
                                     </label>
 
                                     <textarea
-                                        value={data.description}
-                                        onChange={(event) => setData('description', event.target.value)}
+                                        value={createForm.data.description}
+                                        onChange={(event) =>
+                                            createForm.setData('description', event.target.value)
+                                        }
                                         className="mt-1 w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
                                         rows="4"
                                         placeholder="Describe the issue..."
                                     />
 
-                                    {errors.description && (
+                                    {createForm.errors.description && (
                                         <p className="mt-2 text-sm text-red-600">
-                                            {errors.description}
+                                            {createForm.errors.description}
                                         </p>
                                     )}
                                 </div>
@@ -108,8 +175,10 @@ export default function Index({ workspace, workspaceRole, tickets }) {
                                     </label>
 
                                     <select
-                                        value={data.priority}
-                                        onChange={(event) => setData('priority', event.target.value)}
+                                        value={createForm.data.priority}
+                                        onChange={(event) =>
+                                            createForm.setData('priority', event.target.value)
+                                        }
                                         className="mt-1 rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
                                     >
                                         <option value="low">Low</option>
@@ -118,20 +187,118 @@ export default function Index({ workspace, workspaceRole, tickets }) {
                                         <option value="urgent">Urgent</option>
                                     </select>
 
-                                    {errors.priority && (
+                                    {createForm.errors.priority && (
                                         <p className="mt-2 text-sm text-red-600">
-                                            {errors.priority}
+                                            {createForm.errors.priority}
                                         </p>
                                     )}
                                 </div>
 
                                 <button
                                     type="submit"
-                                    disabled={processing}
+                                    disabled={createForm.processing}
                                     className="rounded-md bg-gray-900 px-4 py-2 text-sm font-semibold text-white hover:bg-gray-700 disabled:opacity-50"
                                 >
                                     Create Ticket
                                 </button>
+                            </form>
+                        </div>
+                    </div>
+
+                    <div className="overflow-hidden bg-white shadow-sm sm:rounded-lg">
+                        <div className="p-6">
+                            <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-center">
+                                <div>
+                                    <h3 className="text-lg font-semibold text-gray-900">
+                                        Filter tickets
+                                    </h3>
+
+                                    <p className="mt-1 text-sm text-gray-600">
+                                        Search tickets by title, description, status, or priority.
+                                    </p>
+                                </div>
+
+                                <p className="text-sm text-gray-500">
+                                    Results: {tickets.length}
+                                </p>
+                            </div>
+
+                            <form
+                                onSubmit={applyFilters}
+                                className="mt-6 grid gap-4 md:grid-cols-4"
+                            >
+                                <div className="md:col-span-2">
+                                    <label className="block text-sm font-medium text-gray-700">
+                                        Search
+                                    </label>
+
+                                    <input
+                                        type="text"
+                                        value={filterForm.data.search}
+                                        onChange={(event) =>
+                                            filterForm.setData('search', event.target.value)
+                                        }
+                                        className="mt-1 w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
+                                        placeholder="Search title or description..."
+                                    />
+                                </div>
+
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-700">
+                                        Status
+                                    </label>
+
+                                    <select
+                                        value={filterForm.data.status}
+                                        onChange={(event) =>
+                                            filterForm.setData('status', event.target.value)
+                                        }
+                                        className="mt-1 w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
+                                    >
+                                        <option value="all">All statuses</option>
+                                        <option value="open">Open</option>
+                                        <option value="pending">Pending</option>
+                                        <option value="resolved">Resolved</option>
+                                        <option value="closed">Closed</option>
+                                    </select>
+                                </div>
+
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-700">
+                                        Priority
+                                    </label>
+
+                                    <select
+                                        value={filterForm.data.priority}
+                                        onChange={(event) =>
+                                            filterForm.setData('priority', event.target.value)
+                                        }
+                                        className="mt-1 w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
+                                    >
+                                        <option value="all">All priorities</option>
+                                        <option value="low">Low</option>
+                                        <option value="medium">Medium</option>
+                                        <option value="high">High</option>
+                                        <option value="urgent">Urgent</option>
+                                    </select>
+                                </div>
+
+                                <div className="flex gap-3 md:col-span-4">
+                                    <button
+                                        type="submit"
+                                        className="rounded-md bg-gray-900 px-4 py-2 text-sm font-semibold text-white hover:bg-gray-700"
+                                    >
+                                        Apply Filters
+                                    </button>
+
+                                    <button
+                                        type="button"
+                                        onClick={resetFilters}
+                                        className="rounded-md border border-gray-300 px-4 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-50"
+                                    >
+                                        Reset
+                                    </button>
+                                </div>
                             </form>
                         </div>
                     </div>
@@ -167,10 +334,14 @@ export default function Index({ workspace, workspaceRole, tickets }) {
                                                     <p className="mt-3 text-xs text-gray-500">
                                                         Created by {ticket.creator ?? 'Unknown'} on {ticket.created_at}
                                                     </p>
+
+                                                    <p className="mt-1 text-xs text-gray-500">
+                                                        Assigned to {ticket.assignee ?? 'Unassigned'}
+                                                    </p>
                                                 </div>
 
                                                 <div className="flex gap-2">
-                                                    <span className="rounded-full bg-green-100 px-3 py-1 text-xs font-medium text-green-700">
+                                                    <span className={`rounded-full px-3 py-1 text-xs font-medium ${statusBadge(ticket.status)}`}>
                                                         {ticket.status}
                                                     </span>
 
@@ -183,7 +354,7 @@ export default function Index({ workspace, workspaceRole, tickets }) {
                                     ))
                                 ) : (
                                     <p className="text-sm text-gray-600">
-                                        No tickets found for this workspace yet.
+                                        No tickets matched your filters.
                                     </p>
                                 )}
                             </div>
