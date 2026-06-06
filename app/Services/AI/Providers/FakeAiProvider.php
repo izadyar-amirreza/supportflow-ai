@@ -1,14 +1,15 @@
 <?php
 
-namespace App\Services;
+namespace App\Services\AI\Providers;
 
 use App\Models\Ticket;
+use App\Services\AI\Contracts\AiProvider;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Str;
 
-class FakeAiTicketSummaryService
+class FakeAiProvider implements AiProvider
 {
-    public function summarize(Ticket $ticket, Collection $comments): string
+    public function summarizeTicket(Ticket $ticket, Collection $comments): string
     {
         $publicCommentCount = $comments
             ->where('is_internal', false)
@@ -39,7 +40,8 @@ class FakeAiTicketSummaryService
             'Suggested next step: Review the latest customer context, confirm the expected behavior, and update the ticket status after taking action.',
         ]);
     }
-        public function suggestReply(Ticket $ticket, Collection $comments): string
+
+    public function suggestReply(Ticket $ticket, Collection $comments): string
     {
         $latestPublicComment = $comments
             ->where('is_internal', false)

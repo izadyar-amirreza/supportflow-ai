@@ -12,7 +12,7 @@ use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
 use Inertia\Inertia;
 use Inertia\Response;
-use App\Services\FakeAiTicketSummaryService;
+use App\Services\AI\AiTicketService;
 class TicketController extends Controller
 {
     public function index(Request $request): Response
@@ -337,7 +337,7 @@ class TicketController extends Controller
         public function generateAiSummary(
         Request $request,
         Ticket $ticket,
-        FakeAiTicketSummaryService $summaryService,
+        AiTicketService $aiTicketService,
     ): RedirectResponse {
         $membership = $this->currentMembership($request);
 
@@ -349,7 +349,7 @@ class TicketController extends Controller
             ->oldest()
             ->get();
 
-        $summary = $summaryService->summarize($ticket, $comments);
+        $summary = $aiTicketService->summarizeTicket($ticket, $comments);
 
         $ticket->update([
             'ai_summary' => $summary,
@@ -371,7 +371,7 @@ class TicketController extends Controller
         public function generateAiSuggestedReply(
         Request $request,
         Ticket $ticket,
-        FakeAiTicketSummaryService $summaryService,
+        AiTicketService $aiTicketService,
     ): RedirectResponse {
         $membership = $this->currentMembership($request);
 
@@ -383,7 +383,7 @@ class TicketController extends Controller
             ->oldest()
             ->get();
 
-        $suggestedReply = $summaryService->suggestReply($ticket, $comments);
+        $suggestedReply = $aiTicketService->suggestReply($ticket, $comments);
 
         $ticket->update([
             'ai_suggested_reply' => $suggestedReply,
