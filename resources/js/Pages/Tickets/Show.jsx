@@ -23,7 +23,14 @@ export default function Show({
     });
 
     const aiSummaryForm = useForm({});
+    const aiSuggestedReplyForm = useForm({});
+    const generateAiSuggestedReply = (event) => {
+    event.preventDefault();
 
+    aiSuggestedReplyForm.post(route('tickets.ai-suggested-reply.generate', ticket.id), {
+        preserveScroll: true,
+    });
+};
     const generateAiSummary = (event) => {
     event.preventDefault();
 
@@ -363,7 +370,49 @@ export default function Show({
                                     </div>
                                 </div>
                             )}
+                            {canManageTicket && (
+                                <div className="overflow-hidden bg-white shadow-sm sm:rounded-lg">
+                                    <div className="p-6">
+                                        <h3 className="text-lg font-semibold text-gray-900">
+                                            AI Suggested Reply
+                                        </h3>
 
+                                        <p className="mt-1 text-sm text-gray-600">
+                                            This fake AI service generates a suggested customer reply based on the ticket and comments.
+                                        </p>
+
+                                        {ticket.ai_suggested_reply ? (
+                                            <div className="mt-4 rounded-lg border border-green-100 bg-green-50 p-4">
+                                                <p className="whitespace-pre-line text-sm text-gray-800">
+                                                    {ticket.ai_suggested_reply}
+                                                </p>
+
+                                                {ticket.ai_suggested_reply_generated_at && (
+                                                    <p className="mt-3 text-xs text-gray-500">
+                                                        Generated at {ticket.ai_suggested_reply_generated_at}
+                                                    </p>
+                                                )}
+                                            </div>
+                                        ) : (
+                                            <div className="mt-4 rounded-lg border border-gray-200 p-4">
+                                                <p className="text-sm text-gray-600">
+                                                    No AI suggested reply generated yet.
+                                                </p>
+                                            </div>
+                                        )}
+
+                                        <form onSubmit={generateAiSuggestedReply} className="mt-4">
+                                            <button
+                                                type="submit"
+                                                disabled={aiSuggestedReplyForm.processing}
+                                                className="w-full rounded-md bg-green-600 px-4 py-2 text-sm font-semibold text-white hover:bg-green-500 disabled:opacity-50"
+                                            >
+                                                {ticket.ai_suggested_reply ? 'Regenerate Suggested Reply' : 'Generate Suggested Reply'}
+                                            </button>
+                                        </form>
+                                    </div>
+                                </div>
+                            )}
                             {canViewInternalNotes && (
                                 <div className="overflow-hidden bg-white shadow-sm sm:rounded-lg">
                                     <div className="p-6">

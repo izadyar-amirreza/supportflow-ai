@@ -225,6 +225,8 @@ class TicketController extends Controller
                 'description' => $ticket->description,
                 'ai_summary' => $ticket->ai_summary,
                 'ai_summary_generated_at' => $ticket->ai_summary_generated_at?->format('Y-m-d H:i'),
+                'ai_suggested_reply' => $ticket->ai_suggested_reply,
+                'ai_suggested_reply_generated_at' => $ticket->ai_suggested_reply_generated_at?->format('Y-m-d H:i'),
                 'status' => $ticket->status,
                 'priority' => $ticket->priority,
                 'creator' => $ticket->creator?->name,
@@ -361,6 +363,40 @@ class TicketController extends Controller
             description: 'AI summary was generated.',
             oldValue: null,
             newValue: 'AI summary generated',
+        );
+
+        return redirect()->route('tickets.show', $ticket);
+    }
+
+        public function generateAiSuggestedReply(
+        Request $request,
+        Ticket $ticket,
+        FakeAiTicketSummaryService $summaryService,
+    ): RedirectResponse {
+        $membership = $this->currentMembership($request);
+
+        abort_unless($ticket->workspace_id === $membership->workspace_id, 404);
+        abort_unless($this->canManageTicket($membership), 403);
+
+        $comments = $ticket
+            ->comments()
+            ->oldest()
+            ->get();
+
+        $suggestedReply = $summaryService->suggestReply($ticket, $comments);
+
+        $ticket->update([
+            'ai_suggested_reply' => $suggestedReply,
+            'ai_suggested_reply_generated_at' => now(),
+        ]);
+
+        $this->logActivity(
+            ticket: $ticket,
+            userId: $request->user()->id,
+            action: 'ai_suggested_reply_generated',
+            description: 'AI suggested reply was generated.',
+            oldValue: null,
+            newValue: 'AI suggested reply generated',
         );
 
         return redirect()->route('tickets.show', $ticket);

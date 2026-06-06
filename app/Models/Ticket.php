@@ -17,12 +17,15 @@ class Ticket extends Model
         'priority',
         'ai_summary',
         'ai_summary_generated_at',
+        'ai_suggested_reply',
+        'ai_suggested_reply_generated_at',
     ];
 
         protected function casts(): array
     {
         return [
             'ai_summary_generated_at' => 'datetime',
+            'ai_suggested_reply_generated_at' => 'datetime',
         ];
     }
 

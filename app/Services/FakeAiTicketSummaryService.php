@@ -39,4 +39,23 @@ class FakeAiTicketSummaryService
             'Suggested next step: Review the latest customer context, confirm the expected behavior, and update the ticket status after taking action.',
         ]);
     }
+        public function suggestReply(Ticket $ticket, Collection $comments): string
+    {
+        $latestPublicComment = $comments
+            ->where('is_internal', false)
+            ->last();
+
+        $context = $latestPublicComment
+            ? Str::limit($latestPublicComment->body, 220)
+            : Str::limit($ticket->description ?? 'No customer message was provided.', 220);
+
+        return implode("\n\n", [
+            'Hi,',
+            "Thanks for reaching out about: {$ticket->title}.",
+            "I reviewed the ticket details and the latest context: {$context}",
+            'The next step is to investigate the issue, confirm the expected behavior, and update you as soon as we have a clear resolution or workaround.',
+            'Best regards,',
+            'Support Team',
+        ]);
+    }
 }
