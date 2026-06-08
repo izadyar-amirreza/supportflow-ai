@@ -7,9 +7,11 @@ export default function Show({
     canViewInternalNotes,
     canManageTicket,
     agents,
+    aiProvider,
     ticket,
     comments,
     activities = [],
+    flash = {},
 }) {
     const commentForm = useForm({
         body: '',
@@ -76,6 +78,17 @@ export default function Show({
 
             <div className="py-12">
                 <div className="mx-auto max-w-7xl space-y-6 sm:px-6 lg:px-8">
+                    {flash.success && (
+                        <div className="rounded-lg border border-green-200 bg-green-50 p-4 text-sm text-green-800">
+                            {flash.success}
+                        </div>
+                    )}
+
+                    {flash.error && (
+                        <div className="rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-800">
+                            {flash.error}
+                        </div>
+                    )}
                     <div>
                         <Link
                             href={route('tickets.index')}
@@ -236,6 +249,45 @@ export default function Show({
                         </div>
 
                         <div className="space-y-6">
+                            <div className="overflow-hidden bg-white shadow-sm sm:rounded-lg">
+                                <div className="p-6">
+                                    <h3 className="text-lg font-semibold text-gray-900">
+                                        AI Provider
+                                    </h3>
+
+                                    <div className="mt-4 rounded-lg border border-gray-200 p-4">
+                                        <p className="text-sm text-gray-500">
+                                            Current provider
+                                        </p>
+
+                                        <p className="mt-1 text-base font-semibold text-gray-900">
+                                            {aiProvider?.name ?? 'Unknown AI Provider'}
+                                        </p>
+
+                                        <div className="mt-3 flex flex-wrap gap-2">
+                                            <span className="rounded-full bg-gray-100 px-3 py-1 text-xs font-medium text-gray-700">
+                                                {aiProvider?.key ?? 'unknown'}
+                                            </span>
+
+                                            {aiProvider?.is_fake ? (
+                                                <span className="rounded-full bg-yellow-100 px-3 py-1 text-xs font-medium text-yellow-800">
+                                                    Local fake mode
+                                                </span>
+                                            ) : (
+                                                <span className="rounded-full bg-green-100 px-3 py-1 text-xs font-medium text-green-800">
+                                                    Real provider mode
+                                                </span>
+                                            )}
+                                        </div>
+
+                                        {aiProvider?.is_fake && (
+                                            <p className="mt-3 text-sm text-gray-600">
+                                                This project is currently using a fake local AI provider. Gemini or OpenAI can be enabled later.
+                                            </p>
+                                        )}
+                                    </div>
+                                </div>
+                            </div>
                             {canManageTicket && (
                                 <div className="overflow-hidden bg-white shadow-sm sm:rounded-lg">
                                     <div className="p-6">

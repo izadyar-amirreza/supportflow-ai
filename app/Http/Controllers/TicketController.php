@@ -13,6 +13,7 @@ use Illuminate\Validation\Rule;
 use Inertia\Inertia;
 use Inertia\Response;
 use App\Services\AI\AiTicketService;
+use Throwable;
 class TicketController extends Controller
 {
     public function index(Request $request): Response
@@ -164,7 +165,7 @@ class TicketController extends Controller
 
         $canViewInternalNotes = $this->canViewInternalNotes($membership);
         $canManageTicket = $this->canManageTicket($membership);
-
+        
         $commentsQuery = $ticket
             ->comments()
             ->with('user:id,name')
@@ -218,6 +219,11 @@ class TicketController extends Controller
             'workspaceRole' => $membership->role,
             'canViewInternalNotes' => $canViewInternalNotes,
             'canManageTicket' => $canManageTicket,
+            'aiProvider' => [
+                'key' => config('ai.provider', 'fake'),
+                'name' => config('ai.providers.' . config('ai.provider', 'fake') . '.name', 'Unknown AI Provider'),
+                'is_fake' => config('ai.provider', 'fake') === 'fake',
+            ],
             'agents' => $agents,
             'ticket' => [
                 'id' => $ticket->id,
@@ -344,28 +350,39 @@ class TicketController extends Controller
         abort_unless($ticket->workspace_id === $membership->workspace_id, 404);
         abort_unless($this->canManageTicket($membership), 403);
 
-        $comments = $ticket
-            ->comments()
-            ->oldest()
-            ->get();
+        try {
+            $comments = $ticket
+                ->comments()
+                ->oldest()
+                ->get();
 
-        $summary = $aiTicketService->summarizeTicket($ticket, $comments);
+            $summary = $aiTicketService->summarizeTicket($ticket, $comments);
 
-        $ticket->update([
-            'ai_summary' => $summary,
-            'ai_summary_generated_at' => now(),
-        ]);
+            $ticket->update([
+                'ai_summary' => $summary,
+                'ai_summary_generated_at' => now(),
+            ]);
 
-        $this->logActivity(
-            ticket: $ticket,
-            userId: $request->user()->id,
-            action: 'ai_summary_generated',
-            description: 'AI summary was generated.',
-            oldValue: null,
-            newValue: 'AI summary generated',
-        );
+            $this->logActivity(
+                ticket: $ticket,
+                userId: $request->user()->id,
+                action: 'ai_summary_generated',
+                description: 'AI summary was generated.',
+                oldValue: null,
+                newValue: 'AI summary generated',
+            );
 
-        return redirect()->route('tickets.show', $ticket);
+            return redirect()
+                ->route('tickets.show', $ticket)
+                ->with('success', 'AI summary generated successfully.');
+        } catch (Throwable $exception) {
+            report($exception);
+
+            return back()->with(
+                'error',
+                'AI summary could not be generated. Please check the AI provider settings or try again later.'
+            );
+        }
     }
 
         public function generateAiSuggestedReply(
@@ -378,28 +395,39 @@ class TicketController extends Controller
         abort_unless($ticket->workspace_id === $membership->workspace_id, 404);
         abort_unless($this->canManageTicket($membership), 403);
 
-        $comments = $ticket
-            ->comments()
-            ->oldest()
-            ->get();
+        try {
+            $comments = $ticket
+                ->comments()
+                ->oldest()
+                ->get();
 
-        $suggestedReply = $aiTicketService->suggestReply($ticket, $comments);
+            $suggestedReply = $aiTicketService->suggestReply($ticket, $comments);
 
-        $ticket->update([
-            'ai_suggested_reply' => $suggestedReply,
-            'ai_suggested_reply_generated_at' => now(),
-        ]);
+            $ticket->update([
+                'ai_suggested_reply' => $suggestedReply,
+                'ai_suggested_reply_generated_at' => now(),
+            ]);
 
-        $this->logActivity(
-            ticket: $ticket,
-            userId: $request->user()->id,
-            action: 'ai_suggested_reply_generated',
-            description: 'AI suggested reply was generated.',
-            oldValue: null,
-            newValue: 'AI suggested reply generated',
-        );
+            $this->logActivity(
+                ticket: $ticket,
+                userId: $request->user()->id,
+                action: 'ai_suggested_reply_generated',
+                description: 'AI suggested reply was generated.',
+                oldValue: null,
+                newValue: 'AI suggested reply generated',
+            );
 
-        return redirect()->route('tickets.show', $ticket);
+            return redirect()
+                ->route('tickets.show', $ticket)
+                ->with('success', 'AI suggested reply generated successfully.');
+        } catch (Throwable $exception) {
+            report($exception);
+
+            return back()->with(
+                'error',
+                'AI suggested reply could not be generated. Please check the AI provider settings or try again later.'
+            );
+        }
     }
 
     public function comment(Request $request, Ticket $ticket): RedirectResponse
