@@ -1,5 +1,5 @@
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
-import { Head, Link, useForm } from '@inertiajs/react';
+import { Head, Link, router, useForm } from '@inertiajs/react';
 
 export default function Show({
     workspace,
@@ -10,6 +10,7 @@ export default function Show({
     aiProvider,
     ticket,
     comments,
+    attachments = [],
     activities = [],
     flash = {},
 }) {
@@ -17,6 +18,30 @@ export default function Show({
         body: '',
         is_internal: false,
     });
+
+        const attachmentForm = useForm({
+        attachment: null,
+    });
+
+        const uploadAttachment = (event) => {
+        event.preventDefault();
+
+        attachmentForm.post(route('tickets.attachments.store', ticket.id), {
+            forceFormData: true,
+            preserveScroll: true,
+            onSuccess: () => attachmentForm.reset('attachment'),
+        });
+    };
+
+        const deleteAttachment = (attachmentId) => {
+        if (!confirm('Are you sure you want to delete this attachment?')) {
+            return;
+        }
+
+        router.delete(route('tickets.attachments.destroy', [ticket.id, attachmentId]), {
+            preserveScroll: true,
+        });
+    };
 
     const updateForm = useForm({
         status: ticket.status,
@@ -150,7 +175,97 @@ export default function Show({
                                     </div>
                                 </div>
                             </div>
+                            <div className="overflow-hidden bg-white shadow-sm sm:rounded-lg">
+                                <div className="p-6">
+                                    <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-center">
+                                        <div>
+                                            <h3 className="text-lg font-semibold text-gray-900">
+                                                Attachments
+                                            </h3>
 
+                                            <p className="mt-1 text-sm text-gray-600">
+                                                Upload screenshots, PDFs, logs, or documents related to this ticket.
+                                            </p>
+                                        </div>
+
+                                        <p className="text-sm text-gray-500">
+                                            {attachments.length} file(s)
+                                        </p>
+                                    </div>
+
+                                    <form onSubmit={uploadAttachment} className="mt-6 space-y-4">
+                                        <div>
+                                            <input
+                                                type="file"
+                                                onChange={(event) =>
+                                                    attachmentForm.setData('attachment', event.target.files[0])
+                                                }
+                                                className="block w-full text-sm text-gray-700 file:mr-4 file:rounded-md file:border-0 file:bg-gray-900 file:px-4 file:py-2 file:text-sm file:font-semibold file:text-white hover:file:bg-gray-700"
+                                            />
+
+                                            {attachmentForm.errors.attachment && (
+                                                <p className="mt-2 text-sm text-red-600">
+                                                    {attachmentForm.errors.attachment}
+                                                </p>
+                                            )}
+
+                                            <p className="mt-2 text-xs text-gray-500">
+                                                Max size: 5MB. Allowed: images, PDF, txt, log, csv, doc, docx.
+                                            </p>
+                                        </div>
+
+                                        <button
+                                            type="submit"
+                                            disabled={attachmentForm.processing || !attachmentForm.data.attachment}
+                                            className="rounded-md bg-gray-900 px-4 py-2 text-sm font-semibold text-white hover:bg-gray-700 disabled:opacity-50"
+                                        >
+                                            Upload Attachment
+                                        </button>
+                                    </form>
+
+                                    <div className="mt-6 space-y-3">
+                                        {attachments.length > 0 ? (
+                                            attachments.map((attachment) => (
+                                                <div
+                                                    key={attachment.id}
+                                                    className="flex flex-col justify-between gap-3 rounded-lg border border-gray-200 p-4 sm:flex-row sm:items-center"
+                                                >
+                                                    <div>
+                                                        <a
+                                                            href={attachment.url}
+                                                            target="_blank"
+                                                            rel="noreferrer"
+                                                            className="text-sm font-semibold text-indigo-600 hover:text-indigo-800"
+                                                        >
+                                                            {attachment.original_name}
+                                                        </a>
+
+                                                        <p className="mt-1 text-xs text-gray-500">
+                                                            Uploaded by {attachment.uploaded_by ?? 'Unknown'} on {attachment.created_at}
+                                                        </p>
+
+                                                        <p className="mt-1 text-xs text-gray-500">
+                                                            {attachment.mime_type ?? 'Unknown type'} · {Math.ceil(attachment.size / 1024)} KB
+                                                        </p>
+                                                    </div>
+
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => deleteAttachment(attachment.id)}
+                                                        className="text-sm font-medium text-red-600 hover:text-red-800"
+                                                    >
+                                                        Delete
+                                                    </button>
+                                                </div>
+                                            ))
+                                        ) : (
+                                            <p className="text-sm text-gray-600">
+                                                No attachments uploaded yet.
+                                            </p>
+                                        )}
+                                    </div>
+                                </div>
+                            </div>
                             <div className="overflow-hidden bg-white shadow-sm sm:rounded-lg">
                                 <div className="p-6">
                                     <h3 className="text-lg font-semibold text-gray-900">

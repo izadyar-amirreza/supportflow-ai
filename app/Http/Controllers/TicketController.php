@@ -14,6 +14,8 @@ use Inertia\Inertia;
 use Inertia\Response;
 use App\Services\AI\AiTicketService;
 use Throwable;
+use App\Models\TicketAttachment;
+use Illuminate\Support\Facades\Storage;
 class TicketController extends Controller
 {
     public function index(Request $request): Response
@@ -175,7 +177,11 @@ class TicketController extends Controller
             $commentsQuery->where('is_internal', false);
         }
 
-        $ticket->load(['creator:id,name,email', 'assignee:id,name,email']);
+                $ticket->load([
+                'creator:id,name,email',
+                'assignee:id,name,email',
+                'attachments.user:id,name',
+            ]);
 
         $workspaceMembers = WorkspaceMember::query()
             ->where('workspace_id', $membership->workspace_id)
@@ -253,6 +259,17 @@ class TicketController extends Controller
                 'user' => $comment->user?->name,
                 'created_at' => $comment->created_at?->format('Y-m-d H:i'),
             ]),
+
+            'attachments' => $ticket->attachments->map(fn (TicketAttachment $attachment) => [
+                'id' => $attachment->id,
+                'original_name' => $attachment->original_name,
+                'url' => Storage::disk('public')->url($attachment->path),
+                'mime_type' => $attachment->mime_type,
+                'size' => $attachment->size,
+                'uploaded_by' => $attachment->user?->name,
+                'created_at' => $attachment->created_at?->format('Y-m-d H:i'),
+            ]),
+
             'activities' => $activities,
         ]);
     }
@@ -466,6 +483,86 @@ class TicketController extends Controller
         );
 
         return redirect()->route('tickets.show', $ticket);
+    }
+
+        public function uploadAttachment(Request $request, Ticket $ticket): RedirectResponse
+    {
+        $membership = $this->currentMembership($request);
+
+        abort_unless($ticket->workspace_id === $membership->workspace_id, 404);
+
+        $validated = $request->validate([
+            'attachment' => [
+                'required',
+                'file',
+                'max:5120',
+                'mimes:jpg,jpeg,png,gif,webp,pdf,txt,log,csv,doc,docx',
+            ],
+        ]);
+
+        $file = $validated['attachment'];
+
+        $path = $file->store(
+            path: 'ticket-attachments/' . $ticket->id,
+            options: 'public',
+        );
+
+        $attachment = TicketAttachment::create([
+            'ticket_id' => $ticket->id,
+            'user_id' => $request->user()->id,
+            'original_name' => $file->getClientOriginalName(),
+            'path' => $path,
+            'mime_type' => $file->getClientMimeType(),
+            'size' => $file->getSize(),
+        ]);
+
+        $this->logActivity(
+            ticket: $ticket,
+            userId: $request->user()->id,
+            action: 'attachment_uploaded',
+            description: 'A file attachment was uploaded.',
+            oldValue: null,
+            newValue: $attachment->original_name,
+        );
+
+        return redirect()
+            ->route('tickets.show', $ticket)
+            ->with('success', 'Attachment uploaded successfully.');
+    }
+
+        public function deleteAttachment(
+        Request $request,
+        Ticket $ticket,
+        TicketAttachment $attachment,
+    ): RedirectResponse {
+        $membership = $this->currentMembership($request);
+
+        abort_unless($ticket->workspace_id === $membership->workspace_id, 404);
+        abort_unless($attachment->ticket_id === $ticket->id, 404);
+
+        $canDelete = $this->canManageTicket($membership)
+            || $attachment->user_id === $request->user()->id;
+
+        abort_unless($canDelete, 403);
+
+        Storage::disk('public')->delete($attachment->path);
+
+        $fileName = $attachment->original_name;
+
+        $attachment->delete();
+
+        $this->logActivity(
+            ticket: $ticket,
+            userId: $request->user()->id,
+            action: 'attachment_deleted',
+            description: 'A file attachment was deleted.',
+            oldValue: $fileName,
+            newValue: null,
+        );
+
+        return redirect()
+            ->route('tickets.show', $ticket)
+            ->with('success', 'Attachment deleted successfully.');
     }
 
     private function currentMembership(Request $request): WorkspaceMember

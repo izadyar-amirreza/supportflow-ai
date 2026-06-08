@@ -131,6 +131,12 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::post('/tickets/{ticket}/ai-suggested-reply', [TicketController::class, 'generateAiSuggestedReply'])
     ->name('tickets.ai-suggested-reply.generate');
 
+    Route::post('/tickets/{ticket}/attachments', [TicketController::class, 'uploadAttachment'])
+    ->name('tickets.attachments.store');
+
+    Route::delete('/tickets/{ticket}/attachments/{attachment}', [TicketController::class, 'deleteAttachment'])
+    ->name('tickets.attachments.destroy');
+
     Route::post('/tickets/{ticket}/comments', [TicketController::class, 'comment'])
         ->name('tickets.comments.store');
 });
