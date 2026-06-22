@@ -1,5 +1,6 @@
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
 import { Head, Link, router, useForm } from '@inertiajs/react';
+import { useState, useEffect, useRef } from 'react'; // <--- جادوی لایو به این ۳ هوک نیاز داشت
 
 export default function Show({
     workspace,
@@ -19,11 +20,11 @@ export default function Show({
         is_internal: false,
     });
 
-        const attachmentForm = useForm({
+    const attachmentForm = useForm({
         attachment: null,
     });
 
-        const uploadAttachment = (event) => {
+    const uploadAttachment = (event) => {
         event.preventDefault();
 
         attachmentForm.post(route('tickets.attachments.store', ticket.id), {
@@ -33,7 +34,7 @@ export default function Show({
         });
     };
 
-        const deleteAttachment = (attachmentId) => {
+    const deleteAttachment = (attachmentId) => {
         if (!confirm('Are you sure you want to delete this attachment?')) {
             return;
         }
@@ -51,20 +52,85 @@ export default function Show({
 
     const aiSummaryForm = useForm({});
     const aiSuggestedReplyForm = useForm({});
+
+    // ==========================================
+    //       🌟 LIVE MAGIC POLLING LOGIC 🌟
+    // ==========================================
+    const [isPollingSummary, setIsPollingSummary] = useState(false);
+    const [isPollingReply, setIsPollingReply] = useState(false);
+
+    const lastSummaryTimeRef = useRef(ticket.ai_summary_generated_at);
+    const lastReplyTimeRef = useRef(ticket.ai_suggested_reply_generated_at);
+
+    // Keep refs in sync if user navigates between tickets
+    useEffect(() => {
+        lastSummaryTimeRef.current = ticket.ai_summary_generated_at;
+        lastReplyTimeRef.current = ticket.ai_suggested_reply_generated_at;
+    }, [ticket.id]);
+
     const generateAiSuggestedReply = (event) => {
-    event.preventDefault();
+        event.preventDefault();
+        lastReplyTimeRef.current = ticket.ai_suggested_reply_generated_at;
+        setIsPollingReply(true);
 
-    aiSuggestedReplyForm.post(route('tickets.ai-suggested-reply.generate', ticket.id), {
-        preserveScroll: true,
-    });
-};
+        // Safety Fuse: Turn off spinner after 40s if background job fails silently
+        setTimeout(() => setIsPollingReply(false), 40000);
+
+        aiSuggestedReplyForm.post(route('tickets.ai-suggested-reply.generate', ticket.id), {
+            preserveScroll: true,
+            preserveState: true,
+        });
+    };
+
     const generateAiSummary = (event) => {
-    event.preventDefault();
+        event.preventDefault();
+        lastSummaryTimeRef.current = ticket.ai_summary_generated_at;
+        setIsPollingSummary(true);
 
-    aiSummaryForm.post(route('tickets.ai-summary.generate', ticket.id), {
-        preserveScroll: true,
-    });
-};
+        // Safety Fuse: Turn off spinner after 40s
+        setTimeout(() => setIsPollingSummary(false), 40000);
+
+        aiSummaryForm.post(route('tickets.ai-summary.generate', ticket.id), {
+            preserveScroll: true,
+            preserveState: true,
+        });
+    };
+
+    // The Background Silent Observer
+    useEffect(() => {
+        let interval;
+
+        if (isPollingSummary || isPollingReply) {
+            interval = setInterval(() => {
+                router.reload({
+                    only: ['ticket'], // Fetch ONLY the ticket props from Laravel!
+                    preserveScroll: true,
+                    preserveState: true,
+                    onSuccess: (page) => {
+                        const updatedTicket = page.props.ticket;
+
+                        // Check if Summary was updated by the Queue Worker
+                        if (isPollingSummary && updatedTicket.ai_summary_generated_at !== lastSummaryTimeRef.current) {
+                            setIsPollingSummary(false);
+                            lastSummaryTimeRef.current = updatedTicket.ai_summary_generated_at;
+                        }
+
+                        // Check if Reply was updated by the Queue Worker
+                        if (isPollingReply && updatedTicket.ai_suggested_reply_generated_at !== lastReplyTimeRef.current) {
+                            setIsPollingReply(false);
+                            lastReplyTimeRef.current = updatedTicket.ai_suggested_reply_generated_at;
+                            
+                            // قابلیت کپی خودکارِ اعصاب‌خردکن از اینجا حذف شد! ❌
+                        }
+                    }
+                });
+            }, 2000); // Check Laravel DB every 2 seconds
+        }
+
+        return () => clearInterval(interval);
+    }, [isPollingSummary, isPollingReply]);
+
+    // ==========================================
 
     const submitComment = (event) => {
         event.preventDefault();
@@ -175,6 +241,7 @@ export default function Show({
                                     </div>
                                 </div>
                             </div>
+
                             <div className="overflow-hidden bg-white shadow-sm sm:rounded-lg">
                                 <div className="p-6">
                                     <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-center">
@@ -266,6 +333,7 @@ export default function Show({
                                     </div>
                                 </div>
                             </div>
+
                             <div className="overflow-hidden bg-white shadow-sm sm:rounded-lg">
                                 <div className="p-6">
                                     <h3 className="text-lg font-semibold text-gray-900">
@@ -297,7 +365,6 @@ export default function Show({
                                                     onChange={(event) => commentForm.setData('is_internal', event.target.checked)}
                                                     className="rounded border-gray-300 text-indigo-600 shadow-sm focus:ring-indigo-500"
                                                 />
-
                                                 Internal note only visible to support team
                                             </label>
                                         )}
@@ -403,6 +470,7 @@ export default function Show({
                                     </div>
                                 </div>
                             </div>
+
                             {canManageTicket && (
                                 <div className="overflow-hidden bg-white shadow-sm sm:rounded-lg">
                                     <div className="p-6">
@@ -494,6 +562,7 @@ export default function Show({
                                     </div>
                                 </div>
                             )}
+
                             {canManageTicket && (
                                 <div className="overflow-hidden bg-white shadow-sm sm:rounded-lg">
                                     <div className="p-6">
@@ -502,7 +571,7 @@ export default function Show({
                                         </h3>
 
                                         <p className="mt-1 text-sm text-gray-600">
-                                            This is currently generated by a fake local AI service. Later it can be replaced with Gemini or OpenAI.
+                                            Generates a concise, intelligent summary of the ticket conversation using the active AI model.
                                         </p>
 
                                         {ticket.ai_summary ? (
@@ -528,15 +597,19 @@ export default function Show({
                                         <form onSubmit={generateAiSummary} className="mt-4">
                                             <button
                                                 type="submit"
-                                                disabled={aiSummaryForm.processing}
+                                                disabled={aiSummaryForm.processing || isPollingSummary}
                                                 className="w-full rounded-md bg-indigo-600 px-4 py-2 text-sm font-semibold text-white hover:bg-indigo-500 disabled:opacity-50"
                                             >
-                                                {ticket.ai_summary ? 'Regenerate AI Summary' : 'Generate AI Summary'}
+                                                {isPollingSummary 
+                                                    ? '⏳ AI is analyzing conversation...' 
+                                                    : (ticket.ai_summary ? 'Regenerate AI Summary' : 'Generate AI Summary')
+                                                }
                                             </button>
                                         </form>
                                     </div>
                                 </div>
                             )}
+
                             {canManageTicket && (
                                 <div className="overflow-hidden bg-white shadow-sm sm:rounded-lg">
                                     <div className="p-6">
@@ -545,7 +618,7 @@ export default function Show({
                                         </h3>
 
                                         <p className="mt-1 text-sm text-gray-600">
-                                            This fake AI service generates a suggested customer reply based on the ticket and comments.
+                                            Crafts a professional, solution-oriented draft reply for the customer based on the conversation history.
                                         </p>
 
                                         {ticket.ai_suggested_reply ? (
@@ -553,6 +626,14 @@ export default function Show({
                                                 <p className="whitespace-pre-line text-sm text-gray-800">
                                                     {ticket.ai_suggested_reply}
                                                 </p>
+
+                                                <button
+                                                    type="button"
+                                                    onClick={() => commentForm.setData('body', ticket.ai_suggested_reply)}
+                                                    className="mt-3 block text-xs font-semibold text-indigo-600 hover:text-indigo-800"
+                                                >
+                                                    ↓ Copy to comment box
+                                                </button>
 
                                                 {ticket.ai_suggested_reply_generated_at && (
                                                     <p className="mt-3 text-xs text-gray-500">
@@ -571,15 +652,19 @@ export default function Show({
                                         <form onSubmit={generateAiSuggestedReply} className="mt-4">
                                             <button
                                                 type="submit"
-                                                disabled={aiSuggestedReplyForm.processing}
+                                                disabled={aiSuggestedReplyForm.processing || isPollingReply}
                                                 className="w-full rounded-md bg-green-600 px-4 py-2 text-sm font-semibold text-white hover:bg-green-500 disabled:opacity-50"
                                             >
-                                                {ticket.ai_suggested_reply ? 'Regenerate Suggested Reply' : 'Generate Suggested Reply'}
+                                                {isPollingReply 
+                                                    ? '⏳ AI is drafting reply...' 
+                                                    : (ticket.ai_suggested_reply ? 'Regenerate Suggested Reply' : 'Generate Suggested Reply')
+                                                }
                                             </button>
                                         </form>
                                     </div>
                                 </div>
                             )}
+
                             {canViewInternalNotes && (
                                 <div className="overflow-hidden bg-white shadow-sm sm:rounded-lg">
                                     <div className="p-6">

@@ -16,6 +16,8 @@ use App\Services\AI\AiTicketService;
 use Throwable;
 use App\Models\TicketAttachment;
 use Illuminate\Support\Facades\Storage;
+use App\Jobs\GenerateTicketSummaryJob;
+use App\Jobs\GenerateTicketSuggestedReplyJob;
 class TicketController extends Controller
 {
     public function index(Request $request): Response
@@ -357,95 +359,40 @@ class TicketController extends Controller
         return redirect()->route('tickets.show', $ticket);
     }
 
+        // Dispatch AI Summary Job to background Queue
         public function generateAiSummary(
-        Request $request,
-        Ticket $ticket,
-        AiTicketService $aiTicketService,
-    ): RedirectResponse {
-        $membership = $this->currentMembership($request);
+            Request $request,
+            Ticket $ticket,
+        ): RedirectResponse {
+            $membership = $this->currentMembership($request);
 
-        abort_unless($ticket->workspace_id === $membership->workspace_id, 404);
-        abort_unless($this->canManageTicket($membership), 403);
+            abort_unless($ticket->workspace_id === $membership->workspace_id, 404);
+            abort_unless($this->canManageTicket($membership), 403);
 
-        try {
-            $comments = $ticket
-                ->comments()
-                ->oldest()
-                ->get();
-
-            $summary = $aiTicketService->summarizeTicket($ticket, $comments);
-
-            $ticket->update([
-                'ai_summary' => $summary,
-                'ai_summary_generated_at' => now(),
-            ]);
-
-            $this->logActivity(
-                ticket: $ticket,
-                userId: $request->user()->id,
-                action: 'ai_summary_generated',
-                description: 'AI summary was generated.',
-                oldValue: null,
-                newValue: 'AI summary generated',
-            );
+            GenerateTicketSummaryJob::dispatch($ticket, $request->user()->id);
 
             return redirect()
                 ->route('tickets.show', $ticket)
-                ->with('success', 'AI summary generated successfully.');
-        } catch (Throwable $exception) {
-            report($exception);
-
-            return back()->with(
-                'error',
-                'AI summary could not be generated. Please check the AI provider settings or try again later.'
-            );
+                ->with('success', 'AI summary task queued! Refresh the page in a few seconds.');
         }
-    }
 
+
+        // Dispatch AI Suggested Reply Job to background Queue
         public function generateAiSuggestedReply(
-        Request $request,
-        Ticket $ticket,
-        AiTicketService $aiTicketService,
-    ): RedirectResponse {
-        $membership = $this->currentMembership($request);
+            Request $request,
+            Ticket $ticket,
+        ): RedirectResponse {
+            $membership = $this->currentMembership($request);
 
-        abort_unless($ticket->workspace_id === $membership->workspace_id, 404);
-        abort_unless($this->canManageTicket($membership), 403);
+            abort_unless($ticket->workspace_id === $membership->workspace_id, 404);
+            abort_unless($this->canManageTicket($membership), 403);
 
-        try {
-            $comments = $ticket
-                ->comments()
-                ->oldest()
-                ->get();
-
-            $suggestedReply = $aiTicketService->suggestReply($ticket, $comments);
-
-            $ticket->update([
-                'ai_suggested_reply' => $suggestedReply,
-                'ai_suggested_reply_generated_at' => now(),
-            ]);
-
-            $this->logActivity(
-                ticket: $ticket,
-                userId: $request->user()->id,
-                action: 'ai_suggested_reply_generated',
-                description: 'AI suggested reply was generated.',
-                oldValue: null,
-                newValue: 'AI suggested reply generated',
-            );
+            GenerateTicketSuggestedReplyJob::dispatch($ticket, $request->user()->id);
 
             return redirect()
                 ->route('tickets.show', $ticket)
-                ->with('success', 'AI suggested reply generated successfully.');
-        } catch (Throwable $exception) {
-            report($exception);
-
-            return back()->with(
-                'error',
-                'AI suggested reply could not be generated. Please check the AI provider settings or try again later.'
-            );
+                ->with('success', 'AI suggested reply task queued! Refresh the page in a few seconds.');
         }
-    }
 
     public function comment(Request $request, Ticket $ticket): RedirectResponse
     {

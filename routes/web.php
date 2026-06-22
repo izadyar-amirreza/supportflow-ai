@@ -8,6 +8,7 @@ use Illuminate\Foundation\Application;
 use Illuminate\Support\Facades\Route;
 use Inertia\Inertia;
 use App\Http\Controllers\WorkspaceMemberController;
+use App\Services\AI\Providers\OpenAiProvider;
 
 Route::get('/', function () {
     return Inertia::render('Welcome', [
@@ -102,7 +103,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
         ->name('workspaces.switch');
 
     Route::get('/workspace/members', [WorkspaceMemberController::class, 'index'])
-    ->name('workspace-members.index');
+        ->name('workspace-members.index');
 
     Route::post('/workspace/members', [WorkspaceMemberController::class, 'store'])
         ->name('workspace-members.store');
@@ -126,16 +127,16 @@ Route::middleware(['auth', 'verified'])->group(function () {
         ->name('tickets.update');
 
     Route::post('/tickets/{ticket}/ai-summary', [TicketController::class, 'generateAiSummary'])
-    ->name('tickets.ai-summary.generate');
+        ->name('tickets.ai-summary.generate');
 
     Route::post('/tickets/{ticket}/ai-suggested-reply', [TicketController::class, 'generateAiSuggestedReply'])
-    ->name('tickets.ai-suggested-reply.generate');
+        ->name('tickets.ai-suggested-reply.generate');
 
     Route::post('/tickets/{ticket}/attachments', [TicketController::class, 'uploadAttachment'])
-    ->name('tickets.attachments.store');
+        ->name('tickets.attachments.store');
 
     Route::delete('/tickets/{ticket}/attachments/{attachment}', [TicketController::class, 'deleteAttachment'])
-    ->name('tickets.attachments.destroy');
+        ->name('tickets.attachments.destroy');
 
     Route::post('/tickets/{ticket}/comments', [TicketController::class, 'comment'])
         ->name('tickets.comments.store');

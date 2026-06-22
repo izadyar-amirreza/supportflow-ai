@@ -1,68 +1,75 @@
 <?php
 
-namespace App\Services;
+namespace App\Services\AI\Providers;
 
-use OpenAI\Laravel\Facades\OpenAI;
+use App\Services\AI\Contracts\AiProvider;
+use OpenAI;
+use GuzzleHttp\Client as GuzzleClient;
 use App\Models\Ticket;
-use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Collection;
 
-class OpenAiProvider 
+class OpenAiProvider implements AiProvider
 {
-    /**
-     * Summarize the ticket
-     */
-    public function summarizeTicket(Ticket $ticket)
+    private function getClient()
     {
-        try {
-            // Assuming the text to be summarized is in the ticket body or its comments
-            // Sending a simple text for testing purposes
-            $textToSummarize = "تیکت شماره: " . $ticket->id . " - متن: " . ($ticket->content ?? 'متن تیکت خالی است');
+        $proxy = env('OPENAI_PROXY');
 
-            $response = OpenAI::chat()->create([
-                'model' => 'gpt-4o-mini', // Using the fast and cost-effective mini model
-                'messages' => [
-                    ['role' => 'system', 'content' => 'شما یک دستیار هوشمند پشتیبانی هستید. لطفا متن زیر را به صورت کوتاه و به زبان فارسی خلاصه کنید.'],
-                    ['role' => 'user', 'content' => $textToSummarize],
-                ],
-                'max_tokens' => 300,
-            ]);
-
-            $summary = $response->choices[0]->message->content;
-
-            // Save to database
-            $ticket->update([
-                'ai_summary' => $summary
-            ]);
-
-            return $summary;
-
-        } catch (\Exception $e) {
-            Log::error('OpenAI Connection Error: ' . $e->getMessage());
-            return 'Error generating summary.';
+        $options = ['verify' => false];
+        if (!empty($proxy)) {
+            $options['proxy'] = $proxy;
         }
+
+        $guzzle = new GuzzleClient($options);
+
+        return OpenAI::factory()
+            ->withApiKey(env('OPENAI_API_KEY'))
+            ->withBaseUri(env('OPENAI_BASE_URI', 'https://api.openai.com/v1'))
+            ->withHttpClient($guzzle)
+            ->make();
     }
 
-    /**
-     * Suggest a reply
-     */
-    public function suggestReply(Ticket $ticket)
+    public function summarizeTicket(Ticket $ticket, Collection $comments): string
     {
-        try {
-            $textToAnalyze = "متن تیکت: " . ($ticket->content ?? '');
+        $conversation = $comments->pluck('body')->implode("\n\n");
 
-            $response = OpenAI::chat()->create([
-                'model' => 'gpt-4o-mini',
-                'messages' => [
-                    ['role' => 'system', 'content' => 'شما یک پشتیبان حرفه‌ای هستید. با توجه به متن زیر، یک پاسخ مناسب، محترمانه و راهگشا برای کاربر به زبان فارسی بنویسید.'],
-                    ['role' => 'user', 'content' => $textToAnalyze],
-                ],
-            ]);
-
-            return $response->choices[0]->message->content;
-
-        } catch (\Exception $e) {
-            Log::error('OpenAI Connection Error: ' . $e->getMessage());
-            return 'Error generating reply.';
+        if (empty(trim($conversation))) {
+            $conversation = "Ticket Title: " . $ticket->title . "\nDescription: " . ($ticket->description ?? 'No description.');
         }
+
+        $response = $this->getClient()->chat()->create([
+            'model' => env('OPENAI_MODEL', 'gpt-4o-mini'),
+            'messages' => [
+                [
+                    'role' => 'system', 
+                    'content' => 'You are an expert customer support AI. Provide a brief, highly accurate summary of the following support ticket conversation. IMPORTANT: Write your final summary entirely in clear, professional English.'
+                ],
+                ['role' => 'user', 'content' => $conversation],
+            ],
+            'max_tokens' => 300,
+        ]);
+
+        return $response->choices[0]->message->content;
+    }
+
+    public function suggestReply(Ticket $ticket, Collection $comments): string
+    {
+        $conversation = $comments->pluck('body')->implode("\n\n");
+
+        if (empty(trim($conversation))) {
+            $conversation = "Ticket Description: " . ($ticket->description ?? 'No description.');
+        }
+
+        $response = $this->getClient()->chat()->create([
+            'model' => env('OPENAI_MODEL', 'gpt-4o-mini'),
+            'messages' => [
+                [
+                    'role' => 'system', 
+                    'content' => 'You are a professional customer support agent. Based on the provided conversation, write a helpful, solution-oriented suggested reply for the customer. IMPORTANT: Write the reply entirely in clear, professional English.'
+                ],
+                ['role' => 'user', 'content' => $conversation],
+            ],
+        ]);
+
+        return $response->choices[0]->message->content;
     }
 }
