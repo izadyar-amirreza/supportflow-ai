@@ -18,6 +18,7 @@ use App\Models\TicketAttachment;
 use Illuminate\Support\Facades\Storage;
 use App\Jobs\GenerateTicketSummaryJob;
 use App\Jobs\GenerateTicketSuggestedReplyJob;
+use App\Jobs\AutoTriageTicketJob;
 class TicketController extends Controller
 {
     public function index(Request $request): Response
@@ -158,6 +159,9 @@ class TicketController extends Controller
             newValue: $ticket->title,
         );
 
+        // 🚀 Dispatch AI auto-triage job to the background
+        AutoTriageTicketJob::dispatch($ticket, $request->user()->id);
+
         return redirect()->route('tickets.index');
     }
 
@@ -241,6 +245,8 @@ class TicketController extends Controller
                 'ai_summary_generated_at' => $ticket->ai_summary_generated_at?->format('Y-m-d H:i'),
                 'ai_suggested_reply' => $ticket->ai_suggested_reply,
                 'ai_suggested_reply_generated_at' => $ticket->ai_suggested_reply_generated_at?->format('Y-m-d H:i'),
+                'ai_sentiment' => $ticket->ai_sentiment,
+                'ai_tags'      => $ticket->ai_tags,
                 'status' => $ticket->status,
                 'priority' => $ticket->priority,
                 'creator' => $ticket->creator?->name,

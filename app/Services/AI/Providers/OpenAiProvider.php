@@ -7,6 +7,7 @@ use OpenAI;
 use GuzzleHttp\Client as GuzzleClient;
 use App\Models\Ticket;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\Log;
 
 class OpenAiProvider implements AiProvider
 {
@@ -71,5 +72,48 @@ class OpenAiProvider implements AiProvider
         ]);
 
         return $response->choices[0]->message->content;
+    }
+
+    // =========================================================
+    //        🌟 NEW: THE AUTO-TRIAGE DETECTIVE BRAIN 🌟
+    // =========================================================
+    public function triageTicket(Ticket $ticket): array
+    {
+        try {
+            $content = "Title: " . $ticket->title . "\nDescription: " . ($ticket->description ?? 'No description provided.');
+
+            $response = $this->getClient()->chat()->create([
+                'model' => env('OPENAI_MODEL', 'gpt-4o-mini'),
+                'messages' => [
+                    [
+                        'role' => 'system',
+                        'content' => 'You are an expert AI support triage agent. Analyze the ticket content and respond STRICTLY with a valid JSON object containing exactly three keys:
+                        1. "sentiment": strictly one of ["satisfied", "neutral", "urgent", "angry"].
+                        2. "priority": strictly one of ["low", "medium", "high", "urgent"]. (If sentiment is angry or urgent, priority MUST be high or urgent).
+                        3. "tags": an array of 1 to 4 short lowercase keywords representing the topic (e.g., ["bug", "database", "billing"]).'
+                    ],
+                    ['role' => 'user', 'content' => $content],
+                ],
+                'response_format' => ['type' => 'json_object'], // <--- THE JSON KILLER-LOCK
+            ]);
+
+            $result = json_decode($response->choices[0]->message->content, true);
+
+            return [
+                'sentiment' => $result['sentiment'] ?? 'neutral',
+                'priority'  => $result['priority'] ?? $ticket->priority,
+                'tags'      => is_array($result['tags'] ?? null) ? $result['tags'] : [],
+            ];
+
+        } catch (\Exception $exception) {
+            Log::error('AI Auto-Triage Failed: ' . $exception->getMessage());
+            
+            // Safe defensive fallback so ticket creation never fails!
+            return [
+                'sentiment' => 'neutral',
+                'priority'  => $ticket->priority,
+                'tags'      => ['triage_timeout'],
+            ];
+        }
     }
 }

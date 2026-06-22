@@ -1,6 +1,6 @@
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
 import { Head, Link, router, useForm } from '@inertiajs/react';
-import { useState, useEffect, useRef } from 'react'; // <--- جادوی لایو به این ۳ هوک نیاز داشت
+import { useState, useEffect, useRef } from 'react';
 
 export default function Show({
     workspace,
@@ -53,16 +53,13 @@ export default function Show({
     const aiSummaryForm = useForm({});
     const aiSuggestedReplyForm = useForm({});
 
-    // ==========================================
-    //       🌟 LIVE MAGIC POLLING LOGIC 🌟
-    // ==========================================
+    // Live Polling Logic
     const [isPollingSummary, setIsPollingSummary] = useState(false);
     const [isPollingReply, setIsPollingReply] = useState(false);
 
     const lastSummaryTimeRef = useRef(ticket.ai_summary_generated_at);
     const lastReplyTimeRef = useRef(ticket.ai_suggested_reply_generated_at);
 
-    // Keep refs in sync if user navigates between tickets
     useEffect(() => {
         lastSummaryTimeRef.current = ticket.ai_summary_generated_at;
         lastReplyTimeRef.current = ticket.ai_suggested_reply_generated_at;
@@ -73,7 +70,6 @@ export default function Show({
         lastReplyTimeRef.current = ticket.ai_suggested_reply_generated_at;
         setIsPollingReply(true);
 
-        // Safety Fuse: Turn off spinner after 40s if background job fails silently
         setTimeout(() => setIsPollingReply(false), 40000);
 
         aiSuggestedReplyForm.post(route('tickets.ai-suggested-reply.generate', ticket.id), {
@@ -87,7 +83,6 @@ export default function Show({
         lastSummaryTimeRef.current = ticket.ai_summary_generated_at;
         setIsPollingSummary(true);
 
-        // Safety Fuse: Turn off spinner after 40s
         setTimeout(() => setIsPollingSummary(false), 40000);
 
         aiSummaryForm.post(route('tickets.ai-summary.generate', ticket.id), {
@@ -96,41 +91,34 @@ export default function Show({
         });
     };
 
-    // The Background Silent Observer
     useEffect(() => {
         let interval;
 
         if (isPollingSummary || isPollingReply) {
             interval = setInterval(() => {
                 router.reload({
-                    only: ['ticket'], // Fetch ONLY the ticket props from Laravel!
+                    only: ['ticket'],
                     preserveScroll: true,
                     preserveState: true,
                     onSuccess: (page) => {
                         const updatedTicket = page.props.ticket;
 
-                        // Check if Summary was updated by the Queue Worker
                         if (isPollingSummary && updatedTicket.ai_summary_generated_at !== lastSummaryTimeRef.current) {
                             setIsPollingSummary(false);
                             lastSummaryTimeRef.current = updatedTicket.ai_summary_generated_at;
                         }
 
-                        // Check if Reply was updated by the Queue Worker
                         if (isPollingReply && updatedTicket.ai_suggested_reply_generated_at !== lastReplyTimeRef.current) {
                             setIsPollingReply(false);
                             lastReplyTimeRef.current = updatedTicket.ai_suggested_reply_generated_at;
-                            
-                            // قابلیت کپی خودکارِ اعصاب‌خردکن از اینجا حذف شد! ❌
                         }
                     }
                 });
-            }, 2000); // Check Laravel DB every 2 seconds
+            }, 2000);
         }
 
         return () => clearInterval(interval);
     }, [isPollingSummary, isPollingReply]);
-
-    // ==========================================
 
     const submitComment = (event) => {
         event.preventDefault();
@@ -155,6 +143,18 @@ export default function Show({
         };
 
         return styles[priority] ?? styles.medium;
+    };
+
+    // AI Sentiment Badge Stylizer
+    const sentimentBadge = (sentiment) => {
+        const styles = {
+            satisfied: 'bg-green-50 text-green-700 border-green-200',
+            neutral: 'bg-gray-50 text-gray-600 border-gray-200',
+            urgent: 'bg-orange-50 text-orange-700 border-orange-200',
+            angry: 'bg-red-50 text-red-700 border-red-200 font-bold',
+        };
+
+        return styles[sentiment?.toLowerCase()] ?? 'bg-gray-50 text-gray-600 border-gray-200';
     };
 
     return (
@@ -203,6 +203,23 @@ export default function Show({
                                                 {ticket.title}
                                             </h3>
 
+                                            {/* AI Tags & Sentiment Container */}
+                                            <div className="mt-3 flex flex-wrap items-center gap-2">
+                                                {ticket.ai_sentiment && ticket.ai_sentiment !== 'neutral' && (
+                                                    <span className={`rounded-md border px-2.5 py-0.5 text-xs ${sentimentBadge(ticket.ai_sentiment)}`}>
+                                                        ⚡ {ticket.ai_sentiment.toUpperCase()}
+                                                    </span>
+                                                )}
+
+                                                {ticket.ai_tags && ticket.ai_tags.length > 0 && (
+                                                    ticket.ai_tags.map((tag, index) => (
+                                                        <span key={index} className="rounded-md bg-indigo-50 border border-indigo-100 px-2 py-0.5 text-xs font-medium text-indigo-600">
+                                                            #{tag}
+                                                        </span>
+                                                    ))
+                                                )}
+                                            </div>
+
                                             {ticket.description && (
                                                 <p className="mt-4 whitespace-pre-line text-gray-700">
                                                     {ticket.description}
@@ -229,7 +246,7 @@ export default function Show({
                                             </p>
                                         </div>
 
-                                        <div className="flex gap-2">
+                                        <div className="flex flex-wrap gap-2">
                                             <span className="rounded-full bg-green-100 px-3 py-1 text-xs font-medium text-green-700">
                                                 {ticket.status}
                                             </span>

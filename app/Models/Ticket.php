@@ -19,6 +19,8 @@ class Ticket extends Model
         'ai_summary_generated_at',
         'ai_suggested_reply',
         'ai_suggested_reply_generated_at',
+        'ai_sentiment',
+        'ai_tags',
     ];
 
         protected function casts(): array
@@ -26,6 +28,7 @@ class Ticket extends Model
         return [
             'ai_summary_generated_at' => 'datetime',
             'ai_suggested_reply_generated_at' => 'datetime',
+            'ai_tags' => 'array',
         ];
     }
 
