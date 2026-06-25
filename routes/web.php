@@ -9,6 +9,7 @@ use Illuminate\Support\Facades\Route;
 use Inertia\Inertia;
 use App\Http\Controllers\WorkspaceMemberController;
 use App\Services\AI\Providers\OpenAiProvider;
+use App\Http\Controllers\WorkspaceAiSettingsController;
 
 Route::get('/', function () {
     return Inertia::render('Welcome', [
@@ -140,6 +141,12 @@ Route::middleware(['auth', 'verified'])->group(function () {
 
     Route::post('/tickets/{ticket}/comments', [TicketController::class, 'comment'])
         ->name('tickets.comments.store');
+
+    // ... other routes ...
+
+    Route::get('/workspaces/{workspace}/ai-settings', [WorkspaceAiSettingsController::class, 'edit'])->name('workspaces.ai-settings.edit');
+    Route::put('/workspaces/{workspace}/ai-settings', [WorkspaceAiSettingsController::class, 'update'])->name('workspaces.ai-settings.update');
+
 });
 
 Route::middleware('auth')->group(function () {

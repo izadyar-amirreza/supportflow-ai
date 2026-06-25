@@ -12,6 +12,9 @@ class Workspace extends Model
         'owner_id',
         'name',
         'slug',
+        'ai_provider',
+        'ai_model',
+        'ai_api_key',
     ];
 
     public function owner(): BelongsTo
@@ -27,6 +30,13 @@ class Workspace extends Model
         public function tickets(): HasMany
     {
         return $this->hasMany(Ticket::class);
+    }
+
+    protected function casts(): array
+    {
+        return [
+            'ai_api_key' => 'encrypted', // 🔒 Automatic two-way encryption
+        ];
     }
 
 }

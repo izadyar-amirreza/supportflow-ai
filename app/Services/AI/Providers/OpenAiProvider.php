@@ -8,25 +8,57 @@ use GuzzleHttp\Client as GuzzleClient;
 use App\Models\Ticket;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Log;
+use Exception;
 
 class OpenAiProvider implements AiProvider
 {
-    private function getClient()
+    private function getClient(Ticket $ticket)
     {
-        $proxy = env('OPENAI_PROXY');
+        $workspace = $ticket->workspace;
 
+        if (!$workspace) {
+            throw new Exception("Ticket does not belong to any workspace.");
+        }
+
+        // Fetching the decrypted key directly from the workspace
+        $apiKey = trim((string) $workspace->ai_api_key);
+        
+        if (empty($apiKey)) {
+            $apiKey = trim((string) env('OPENAI_API_KEY', ''));
+        }
+
+        if (empty($apiKey)) {
+            throw new Exception("No AI API key configured for Workspace: {$workspace->name}");
+        }
+
+        $proxy = env('OPENAI_PROXY');
         $options = ['verify' => false];
+        
         if (!empty($proxy)) {
             $options['proxy'] = $proxy;
         }
 
         $guzzle = new GuzzleClient($options);
 
+        // Forcing Groq Base URI to prevent default routing issues
+        $baseUri = 'https://api.groq.com/openai/v1';
+
         return OpenAI::factory()
-            ->withApiKey(env('OPENAI_API_KEY'))
-            ->withBaseUri(env('OPENAI_BASE_URI', 'https://api.openai.com/v1'))
+            ->withApiKey($apiKey)
+            ->withBaseUri($baseUri)
             ->withHttpClient($guzzle)
             ->make();
+    }
+
+    private function resolveModel(Ticket $ticket): string
+    {
+        $workspace = $ticket->workspace;
+        
+        if ($workspace && !empty($workspace->ai_model)) {
+            return $workspace->ai_model;
+        }
+
+        return env('OPENAI_MODEL', 'gpt-4o-mini');
     }
 
     public function summarizeTicket(Ticket $ticket, Collection $comments): string
@@ -37,8 +69,8 @@ class OpenAiProvider implements AiProvider
             $conversation = "Ticket Title: " . $ticket->title . "\nDescription: " . ($ticket->description ?? 'No description.');
         }
 
-        $response = $this->getClient()->chat()->create([
-            'model' => env('OPENAI_MODEL', 'gpt-4o-mini'),
+        $response = $this->getClient($ticket)->chat()->create([
+            'model' => $this->resolveModel($ticket),
             'messages' => [
                 [
                     'role' => 'system', 
@@ -60,8 +92,8 @@ class OpenAiProvider implements AiProvider
             $conversation = "Ticket Description: " . ($ticket->description ?? 'No description.');
         }
 
-        $response = $this->getClient()->chat()->create([
-            'model' => env('OPENAI_MODEL', 'gpt-4o-mini'),
+        $response = $this->getClient($ticket)->chat()->create([
+            'model' => $this->resolveModel($ticket),
             'messages' => [
                 [
                     'role' => 'system', 
@@ -74,16 +106,13 @@ class OpenAiProvider implements AiProvider
         return $response->choices[0]->message->content;
     }
 
-    // =========================================================
-    //        🌟 NEW: THE AUTO-TRIAGE DETECTIVE BRAIN 🌟
-    // =========================================================
     public function triageTicket(Ticket $ticket): array
     {
         try {
             $content = "Title: " . $ticket->title . "\nDescription: " . ($ticket->description ?? 'No description provided.');
 
-            $response = $this->getClient()->chat()->create([
-                'model' => env('OPENAI_MODEL', 'gpt-4o-mini'),
+            $response = $this->getClient($ticket)->chat()->create([
+                'model' => $this->resolveModel($ticket),
                 'messages' => [
                     [
                         'role' => 'system',
@@ -94,7 +123,7 @@ class OpenAiProvider implements AiProvider
                     ],
                     ['role' => 'user', 'content' => $content],
                 ],
-                'response_format' => ['type' => 'json_object'], // <--- THE JSON KILLER-LOCK
+                'response_format' => ['type' => 'json_object'],
             ]);
 
             $result = json_decode($response->choices[0]->message->content, true);
@@ -105,10 +134,9 @@ class OpenAiProvider implements AiProvider
                 'tags'      => is_array($result['tags'] ?? null) ? $result['tags'] : [],
             ];
 
-        } catch (\Exception $exception) {
+        } catch (Exception $exception) {
             Log::error('AI Auto-Triage Failed: ' . $exception->getMessage());
             
-            // Safe defensive fallback so ticket creation never fails!
             return [
                 'sentiment' => 'neutral',
                 'priority'  => $ticket->priority,
