@@ -26,10 +26,11 @@ class TicketController extends Controller
         $membership = $this->currentMembership($request);
 
         $filters = [
-            'search' => $request->input('search', ''),
-            'status' => $request->input('status', 'all'),
+            'search'   => $request->input('search', ''),
+            'status'   => $request->input('status', 'all'),
             'priority' => $request->input('priority', 'all'),
-            'sort' => $request->input('sort', 'latest'),
+            'sort'     => $request->input('sort', 'latest'),
+            'tag'      => $request->input('tag', ''), // 🌟 Added AI Tag filter
             'per_page' => (int) $request->input('per_page', 10),
         ];
 
@@ -67,6 +68,11 @@ class TicketController extends Controller
 
         if ($filters['priority'] !== 'all') {
             $ticketQuery->where('priority', $filters['priority']);
+        }
+
+        // 🌟 Apply AI Tag Filter (Searching inside JSON column)
+        if ($filters['tag'] !== '') {
+            $ticketQuery->whereJsonContains('ai_tags', $filters['tag']);
         }
 
         match ($filters['sort']) {
@@ -107,6 +113,8 @@ class TicketController extends Controller
                 'description' => $ticket->description,
                 'status' => $ticket->status,
                 'priority' => $ticket->priority,
+                'ai_sentiment' => $ticket->ai_sentiment, // 🌟 Sent to React
+                'ai_tags'      => $ticket->ai_tags,      // 🌟 Sent to React
                 'creator' => $ticket->creator?->name,
                 'creator_role' => $ticket->creator
                     ? $memberRoles->get($ticket->creator->id)

@@ -10,6 +10,7 @@ export default function Index({
         status: 'all',
         priority: 'all',
         sort: 'latest',
+        tag: '', // 🌟 Added AI Tag filter
         per_page: 10,
     },
 }) {
@@ -24,6 +25,7 @@ export default function Index({
         status: filters.status ?? 'all',
         priority: filters.priority ?? 'all',
         sort: filters.sort ?? 'latest',
+        tag: filters.tag ?? '', // 🌟 Added AI Tag filter
         per_page: filters.per_page ?? 10,
     });
 
@@ -45,6 +47,7 @@ export default function Index({
                 status: filterForm.data.status,
                 priority: filterForm.data.priority,
                 sort: filterForm.data.sort,
+                tag: filterForm.data.tag, // 🌟 Sent to Laravel
                 per_page: filterForm.data.per_page,
             },
             {
@@ -60,6 +63,7 @@ export default function Index({
             status: 'all',
             priority: 'all',
             sort: 'latest',
+            tag: '', // 🌟 Reset Tag
             per_page: 10,
         });
 
@@ -93,6 +97,18 @@ export default function Index({
         };
 
         return styles[status] ?? styles.open;
+    };
+
+    // AI Sentiment Badge Stylizer
+    const sentimentBadge = (sentiment) => {
+        const styles = {
+            satisfied: 'bg-green-50 text-green-700 border-green-200',
+            neutral: 'bg-gray-50 text-gray-600 border-gray-200',
+            urgent: 'bg-orange-50 text-orange-700 border-orange-200',
+            angry: 'bg-red-50 text-red-700 border-red-200 font-bold',
+        };
+
+        return styles[sentiment?.toLowerCase()] ?? 'bg-gray-50 text-gray-600 border-gray-200';
     };
 
     return (
@@ -233,7 +249,7 @@ export default function Index({
 
                             <form
                                 onSubmit={applyFilters}
-                                className="mt-6 grid gap-4 md:grid-cols-6"
+                                className="mt-6 grid gap-4 md:grid-cols-6 lg:grid-cols-7" // 🌟 Adjusted columns for the new input
                             >
                                 <div className="md:col-span-2">
                                     <label className="block text-sm font-medium text-gray-700">
@@ -248,6 +264,23 @@ export default function Index({
                                         }
                                         className="mt-1 w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
                                         placeholder="Search title or description..."
+                                    />
+                                </div>
+
+                                {/* 🌟 NEW: AI Tag Search Box */}
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-700">
+                                        AI Tag
+                                    </label>
+
+                                    <input
+                                        type="text"
+                                        value={filterForm.data.tag}
+                                        onChange={(event) =>
+                                            filterForm.setData('tag', event.target.value)
+                                        }
+                                        className="mt-1 w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
+                                        placeholder="e.g. bug"
                                     />
                                 </div>
 
@@ -331,7 +364,7 @@ export default function Index({
                                     </select>
                                 </div>
 
-                                <div className="flex gap-3 md:col-span-6">
+                                <div className="flex gap-3 md:col-span-6 lg:col-span-7">
                                     <button
                                         type="submit"
                                         className="rounded-md bg-gray-900 px-4 py-2 text-sm font-semibold text-white hover:bg-gray-700"
@@ -373,8 +406,25 @@ export default function Index({
                                                         #{ticket.id} {ticket.title}
                                                     </Link>
 
+                                                    {/* 🌟 NEW: AI Tags & Sentiment inside Index List */}
+                                                    <div className="mt-2 flex flex-wrap items-center gap-2">
+                                                        {ticket.ai_sentiment && ticket.ai_sentiment !== 'neutral' && (
+                                                            <span className={`rounded-md border px-2 py-0.5 text-[10px] uppercase ${sentimentBadge(ticket.ai_sentiment)}`}>
+                                                                ⚡ {ticket.ai_sentiment}
+                                                            </span>
+                                                        )}
+
+                                                        {ticket.ai_tags && ticket.ai_tags.length > 0 && (
+                                                            ticket.ai_tags.map((tag, index) => (
+                                                                <span key={index} className="rounded-md bg-indigo-50 border border-indigo-100 px-1.5 py-0.5 text-[10px] font-medium text-indigo-600">
+                                                                    #{tag}
+                                                                </span>
+                                                            ))
+                                                        )}
+                                                    </div>
+
                                                     {ticket.description && (
-                                                        <p className="mt-2 text-sm text-gray-600">
+                                                        <p className="mt-2 text-sm text-gray-600 line-clamp-2">
                                                             {ticket.description}
                                                         </p>
                                                     )}
@@ -389,7 +439,7 @@ export default function Index({
                                                         {' '}on {ticket.created_at}
                                                     </p>
 
-                                                   <p className="mt-1 text-xs text-gray-500">
+                                                    <p className="mt-1 text-xs text-gray-500">
                                                         Assigned to {ticket.assignee ?? 'Unassigned'}
                                                         {ticket.assignee_role && (
                                                             <span className="ml-1 rounded-full bg-gray-100 px-2 py-0.5 text-[10px] font-medium text-gray-600">
