@@ -109,17 +109,31 @@ class OpenAiProvider implements AiProvider
     public function triageTicket(Ticket $ticket): array
     {
         try {
+            // Build the base content from title and description
             $content = "Title: " . $ticket->title . "\nDescription: " . ($ticket->description ?? 'No description provided.');
+
+            // Append conversation history (comments) if they exist
+            if ($ticket->comments && $ticket->comments->count() > 0) {
+                $content .= "\n\n--- Conversation History ---\n";
+                foreach ($ticket->comments as $comment) {
+                    // Try common column names for the comment text (content, body, or message)
+                    $text = $comment->content ?? $comment->body ?? $comment->message ?? '';
+                    if (!empty($text)) {
+                        $content .= "Reply: " . $text . "\n";
+                    }
+                }
+                $content .= "\n(IMPORTANT: Analyze the CURRENT state of the ticket based on the latest replies. If the user says the issue is fixed or a false alarm, update sentiment to satisfied and priority to low).";
+            }
 
             $response = $this->getClient($ticket)->chat()->create([
                 'model' => $this->resolveModel($ticket),
                 'messages' => [
                     [
                         'role' => 'system',
-                        'content' => 'You are an expert AI support triage agent. Analyze the ticket content and respond STRICTLY with a valid JSON object containing exactly three keys:
+                        'content' => 'You are an expert AI support triage agent. Analyze the ticket content and the conversation history to determine the CURRENT status. Respond STRICTLY with a valid JSON object containing exactly three keys:
                         1. "sentiment": strictly one of ["satisfied", "neutral", "urgent", "angry"].
-                        2. "priority": strictly one of ["low", "medium", "high", "urgent"]. (If sentiment is angry or urgent, priority MUST be high or urgent).
-                        3. "tags": an array of 1 to 4 short lowercase keywords representing the topic (e.g., ["bug", "database", "billing"]).'
+                        2. "priority": strictly one of ["low", "medium", "high", "urgent"]. (If sentiment is angry/urgent, priority MUST be high/urgent. If the issue is resolved or a false alarm, priority should be low).
+                        3. "tags": an array of 1 to 4 short lowercase keywords representing the topic (e.g., ["bug", "resolved", "false-alarm"]).'
                     ],
                     ['role' => 'user', 'content' => $content],
                 ],
@@ -134,8 +148,8 @@ class OpenAiProvider implements AiProvider
                 'tags'      => is_array($result['tags'] ?? null) ? $result['tags'] : [],
             ];
 
-        } catch (Exception $exception) {
-            Log::error('AI Auto-Triage Failed: ' . $exception->getMessage());
+        } catch (\Exception $exception) {
+            \Illuminate\Support\Facades\Log::error('AI Auto-Triage Failed: ' . $exception->getMessage());
             
             return [
                 'sentiment' => 'neutral',

@@ -4,8 +4,10 @@ namespace App\Providers;
 
 use App\Services\AI\Contracts\AiProvider;
 use App\Services\AI\Providers\FakeAiProvider;
-use App\Services\AI\Providers\OpenAiProvider; // <--- Updated path
+use App\Services\AI\Providers\OpenAiProvider;
 use Illuminate\Support\ServiceProvider;
+use App\Models\TicketComment;
+use App\Observers\CommentObserver;
 
 class AppServiceProvider extends ServiceProvider
 {
@@ -20,6 +22,6 @@ class AppServiceProvider extends ServiceProvider
 
     public function boot(): void
     {
-        //
+        TicketComment::observe(CommentObserver::class);
     }
 }
