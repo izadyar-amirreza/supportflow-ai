@@ -31,11 +31,20 @@ class AutoTriageTicketJob implements ShouldQueue
 
             $oldPriority = $this->ticket->priority;
             $newPriority = $triage['priority'] ?? $oldPriority;
+            
+            $oldStatus = $this->ticket->status;
+            $newStatus = $oldStatus;
+
+            // Check if the AI agent decided to execute an action
+            if (isset($triage['action']) && $triage['action'] === 'close_ticket') {
+                $newStatus = 'closed';
+            }
 
             $this->ticket->update([
                 'ai_sentiment' => $triage['sentiment'] ?? 'neutral',
                 'priority'     => $newPriority,
                 'ai_tags'      => $triage['tags'] ?? [],
+                'status'       => $newStatus,
             ]);
 
             TicketActivity::create([
@@ -46,11 +55,23 @@ class AutoTriageTicketJob implements ShouldQueue
                 'old_value'   => $oldPriority,
                 'new_value'   => $newPriority,
             ]);
-                // Dispatch live broadcast event to Reverb
-                 TicketTriagedEvent::dispatch($this->ticket);
+
+            // If AI actually executed the close action, log it in the activity feed!
+            if ($newStatus === 'closed' && $oldStatus !== 'closed') {
+                TicketActivity::create([
+                    'ticket_id'   => $this->ticket->id,
+                    'user_id'     => $this->triggeredByUserId,
+                    'action'      => 'ai_action_executed',
+                    'description' => "AI autonomously closed the ticket based on conversation context.",
+                    'old_value'   => $oldStatus,
+                    'new_value'   => $newStatus,
+                ]);
+            }
+
+            TicketTriagedEvent::dispatch($this->ticket);
+
         } catch (\Exception $exception) {
-            Log::error('AutoTriageTicketJob Failed: ' . $exception->getMessage());
+            \Illuminate\Support\Facades\Log::error('AutoTriageTicketJob Failed: ' . $exception->getMessage());
         }
-        
     }
 }

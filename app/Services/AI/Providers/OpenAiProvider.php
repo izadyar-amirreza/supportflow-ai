@@ -84,7 +84,7 @@ class OpenAiProvider implements AiProvider
         return $response->choices[0]->message->content;
     }
 
-    public function suggestReply(Ticket $ticket, Collection $comments): string
+    public function suggestReply(Ticket $ticket, $comments): string
     {
         $conversation = $comments->pluck('body')->implode("\n\n");
 
@@ -92,12 +92,26 @@ class OpenAiProvider implements AiProvider
             $conversation = "Ticket Description: " . ($ticket->description ?? 'No description.');
         }
 
+        // 1. Fetch Knowledge Base articles for this specific workspace
+        $knowledgeBases = \App\Models\KnowledgeBase::where('workspace_id', $ticket->workspace_id)->get();
+        
+        $systemPrompt = 'You are a professional customer support agent. Based on the provided conversation, write a helpful, solution-oriented suggested reply for the customer. IMPORTANT: Write the reply entirely in clear, professional English.';
+
+        // 2. Inject RAG (Retrieval-Augmented Generation) context if available
+        if ($knowledgeBases->isNotEmpty()) {
+            $systemPrompt .= "\n\n--- COMPANY KNOWLEDGE BASE ---\nUse the following internal documents to accurately answer the customer's request. Strictly adhere to these policies and do not invent rules:\n";
+            
+            foreach ($knowledgeBases as $kb) {
+                $systemPrompt .= "\nDocument Title: {$kb->title}\nContent: {$kb->content}\n---";
+            }
+        }
+
         $response = $this->getClient($ticket)->chat()->create([
             'model' => $this->resolveModel($ticket),
             'messages' => [
                 [
                     'role' => 'system', 
-                    'content' => 'You are a professional customer support agent. Based on the provided conversation, write a helpful, solution-oriented suggested reply for the customer. IMPORTANT: Write the reply entirely in clear, professional English.'
+                    'content' => $systemPrompt
                 ],
                 ['role' => 'user', 'content' => $conversation],
             ],
@@ -109,20 +123,17 @@ class OpenAiProvider implements AiProvider
     public function triageTicket(Ticket $ticket): array
     {
         try {
-            // Build the base content from title and description
             $content = "Title: " . $ticket->title . "\nDescription: " . ($ticket->description ?? 'No description provided.');
 
-            // Append conversation history (comments) if they exist
             if ($ticket->comments && $ticket->comments->count() > 0) {
                 $content .= "\n\n--- Conversation History ---\n";
                 foreach ($ticket->comments as $comment) {
-                    // Try common column names for the comment text (content, body, or message)
                     $text = $comment->content ?? $comment->body ?? $comment->message ?? '';
                     if (!empty($text)) {
                         $content .= "Reply: " . $text . "\n";
                     }
                 }
-                $content .= "\n(IMPORTANT: Analyze the CURRENT state of the ticket based on the latest replies. If the user says the issue is fixed or a false alarm, update sentiment to satisfied and priority to low).";
+                $content .= "\n(IMPORTANT: Analyze the CURRENT state. If the user explicitly says the issue is fixed, resolved, or asks to close it, you MUST trigger the close_ticket action).";
             }
 
             $response = $this->getClient($ticket)->chat()->create([
@@ -130,10 +141,11 @@ class OpenAiProvider implements AiProvider
                 'messages' => [
                     [
                         'role' => 'system',
-                        'content' => 'You are an expert AI support triage agent. Analyze the ticket content and the conversation history to determine the CURRENT status. Respond STRICTLY with a valid JSON object containing exactly three keys:
+                        'content' => 'You are an expert AI support triage agent. Analyze the ticket content. Respond STRICTLY with a valid JSON object containing exactly four keys:
                         1. "sentiment": strictly one of ["satisfied", "neutral", "urgent", "angry"].
-                        2. "priority": strictly one of ["low", "medium", "high", "urgent"]. (If sentiment is angry/urgent, priority MUST be high/urgent. If the issue is resolved or a false alarm, priority should be low).
-                        3. "tags": an array of 1 to 4 short lowercase keywords representing the topic (e.g., ["bug", "resolved", "false-alarm"]).'
+                        2. "priority": strictly one of ["low", "medium", "high", "urgent"].
+                        3. "tags": array of short lowercase keywords.
+                        4. "action": strictly one of ["none", "close_ticket"]. (Default is "none". Use "close_ticket" ONLY if the conversation explicitly confirms the issue is completely resolved or the user requests closure).'
                     ],
                     ['role' => 'user', 'content' => $content],
                 ],
@@ -146,6 +158,7 @@ class OpenAiProvider implements AiProvider
                 'sentiment' => $result['sentiment'] ?? 'neutral',
                 'priority'  => $result['priority'] ?? $ticket->priority,
                 'tags'      => is_array($result['tags'] ?? null) ? $result['tags'] : [],
+                'action'    => $result['action'] ?? 'none',
             ];
 
         } catch (\Exception $exception) {
@@ -155,6 +168,7 @@ class OpenAiProvider implements AiProvider
                 'sentiment' => 'neutral',
                 'priority'  => $ticket->priority,
                 'tags'      => ['triage_timeout'],
+                'action'    => 'none',
             ];
         }
     }
