@@ -120,6 +120,29 @@ export default function Show({
         return () => clearInterval(interval);
     }, [isPollingSummary, isPollingReply]);
 
+    // Laravel Echo Live Broadcast Listener
+    useEffect(() => {
+        if (!window.Echo) {
+            console.error('Laravel Echo is not initialized!');
+            return;
+        }
+
+        window.Echo.channel(`tickets.${ticket.id}`)
+            // Note the leading dot in '.ticket.triaged' to prevent automatic namespace prefixing
+            .listen('.ticket.triaged', (event) => {
+                console.log('REVERB SIGNAL RECEIVED:', event);
+
+                router.reload({
+                    only: ['ticket', 'activities'],
+                    preserveScroll: true,
+                });
+            });
+
+        return () => {
+            window.Echo.leave(`tickets.${ticket.id}`);
+        };
+    }, [ticket.id]);
+
     const submitComment = (event) => {
         event.preventDefault();
 

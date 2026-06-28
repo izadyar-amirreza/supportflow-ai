@@ -11,7 +11,7 @@ use Illuminate\Foundation\Bus\Dispatchable;
 use Illuminate\Queue\InteractsWithQueue;
 use Illuminate\Queue\SerializesModels;
 use Illuminate\Support\Facades\Log;
-
+use App\Events\TicketTriagedEvent;
 class AutoTriageTicketJob implements ShouldQueue
 {
     use Dispatchable, InteractsWithQueue, Queueable, SerializesModels;
@@ -46,9 +46,11 @@ class AutoTriageTicketJob implements ShouldQueue
                 'old_value'   => $oldPriority,
                 'new_value'   => $newPriority,
             ]);
-
+                // Dispatch live broadcast event to Reverb
+                 TicketTriagedEvent::dispatch($this->ticket);
         } catch (\Exception $exception) {
             Log::error('AutoTriageTicketJob Failed: ' . $exception->getMessage());
         }
+        
     }
 }
