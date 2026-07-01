@@ -10,6 +10,7 @@ use Inertia\Inertia;
 use App\Http\Controllers\WorkspaceMemberController;
 use App\Services\AI\Providers\OpenAiProvider;
 use App\Http\Controllers\WorkspaceAiSettingsController;
+use App\Http\Controllers\KnowledgeBaseController;
 
 Route::get('/', function () {
     return Inertia::render('Welcome', [
@@ -158,6 +159,9 @@ Route::middleware('auth')->group(function () {
 
     Route::delete('/profile', [ProfileController::class, 'destroy'])
         ->name('profile.destroy');
+
+    Route::resource('knowledge-base', KnowledgeBaseController::class)->only(['index', 'store', 'destroy']);
+        
 });
 
 require __DIR__.'/auth.php';

@@ -42,6 +42,9 @@ export default function AuthenticatedLayout({ header, children }) {
                                 >
                                     Members
                                 </NavLink>
+                                <NavLink href={route('knowledge-base.index')} active={route().current('knowledge-base.*')}>
+                                    Knowledge Base
+                                </NavLink>
                             </div>
                         </div>
 
@@ -157,6 +160,9 @@ export default function AuthenticatedLayout({ header, children }) {
                             active={route().current('workspace-members.*')}
                         >
                             Members
+                        </ResponsiveNavLink>
+                        <ResponsiveNavLink href={route('knowledge-base.index')} active={route().current('knowledge-base.*')}>
+                            Knowledge Base
                         </ResponsiveNavLink>
                     </div>
 
