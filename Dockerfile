@@ -48,4 +48,4 @@ RUN chown -R www-data:www-data /var/www/html \
 EXPOSE 80
 
 # Final execution command when server starts
-CMD sh -c "php artisan migrate --force && /usr/bin/supervisord -c /etc/supervisor/conf.d/supervisord.conf"
+CMD sh -c "php artisan optimize:clear && php artisan migrate:force && /usr/bin/supervisord -c /etc/supervisor/conf.d/supervisord.conf"
