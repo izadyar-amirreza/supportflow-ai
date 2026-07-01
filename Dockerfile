@@ -1,4 +1,4 @@
-# Use Linux with PHP 8.2-fpm
+# Use Linux with PHP 8.3-fpm
 FROM php:8.3-fpm
 
 # Install OS dependencies (Nginx, Supervisor, and database extensions)
@@ -33,6 +33,13 @@ RUN composer install --optimize-autoloader --no-dev
 
 # Install React packages and build frontend files
 RUN npm install
+
+# Inject Vite variables to prevent Pusher crash
+RUN echo "VITE_REVERB_APP_KEY=my-reverb-key" > .env
+RUN echo "VITE_REVERB_HOST=supportflow-ai-vfqy.onrender.com" >> .env
+RUN echo "VITE_REVERB_PORT=443" >> .env
+RUN echo "VITE_REVERB_SCHEME=https" >> .env
+
 RUN npm run build
 
 # Copy Nginx and Supervisor configs
