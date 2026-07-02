@@ -4,7 +4,7 @@ namespace Database\Seeders;
 
 use App\Models\User;
 use App\Models\Ticket;
-use App\Models\KnowledgeBase;
+use App\Models\Workspace;
 use Illuminate\Database\Seeder;
 use Illuminate\Support\Facades\Hash;
 
@@ -12,8 +12,8 @@ class DatabaseSeeder extends Seeder
 {
     public function run(): void
     {
-        // 1. Create the admin user (only if it doesn't exist)
-        User::updateOrCreate(
+        // 1. Create or get an Admin User
+        $user = User::updateOrCreate(
             ['email' => 'demo@supportflow.ai'],
             [
                 'name' => 'SupportFlow Admin',
@@ -21,26 +21,22 @@ class DatabaseSeeder extends Seeder
             ]
         );
 
-        // 2. Create 20 sample tickets automatically
-        for ($i = 1; $i <= 20; $i++) {
+        // 2. Create or get a Workspace (Required for ticket foreign key)
+        $workspace = Workspace::updateOrCreate(
+            ['name' => 'Default Workspace'],
+            ['owner_id' => $user->id]
+        );
+
+        // 3. Create 5 sample tickets that match your database schema
+        for ($i = 1; $i <= 5; $i++) {
             Ticket::create([
-                'subject' => 'Sample Ticket #' . $i,
-                'message' => 'This is an automatically generated message for ticket number ' . $i . '.',
-                'priority' => $i % 2 === 0 ? 'high' : 'low',
-                'status' => 'open',
-                'customer_name' => 'Client ' . $i
+                'workspace_id' => $workspace->id,
+                'created_by'   => $user->id,
+                'title'        => 'Sample Ticket #' . $i,
+                'description'  => 'This is a test description for ticket ' . $i,
+                'status'       => 'open',
+                'priority'     => 'medium',
             ]);
         }
-
-        // 3. Create sample Knowledge Base entries
-        KnowledgeBase::updateOrCreate(
-            ['title' => 'Refund Policy'],
-            ['content' => 'Customers can request a full refund within 7 days of purchase.']
-        );
-
-        KnowledgeBase::updateOrCreate(
-            ['title' => 'Password Recovery'],
-            ['content' => 'Click "Forgot Password" on the login page to receive a recovery link via email.']
-        );
     }
 }
