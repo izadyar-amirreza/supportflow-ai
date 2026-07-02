@@ -24,7 +24,10 @@ class DatabaseSeeder extends Seeder
         // 2. Create or get a Workspace (Required for ticket foreign key)
         $workspace = Workspace::updateOrCreate(
             ['name' => 'Default Workspace'],
-            ['owner_id' => $user->id]
+            [
+                'owner_id' => $user->id,
+                'slug' => 'default-workspace' // <-- این خط اضافه شد تا خطای دیتابیس حل شود
+            ]
         );
 
         // 3. Create 5 sample tickets that match your database schema
