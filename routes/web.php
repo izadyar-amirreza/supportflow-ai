@@ -104,9 +104,12 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::post('/workspaces/{workspace}/switch', [WorkspaceController::class, 'switch'])
         ->name('workspaces.switch');
 
+    // --- Members Routes (Support both singular and plural paths to fix 404 errors) ---
     Route::get('/workspace/members', [WorkspaceMemberController::class, 'index'])
         ->name('workspace-members.index');
-
+        
+    Route::get('/workspaces/members', [WorkspaceMemberController::class, 'index']); // Added to match frontend menu URL
+    
     Route::post('/workspace/members', [WorkspaceMemberController::class, 'store'])
         ->name('workspace-members.store');
 
@@ -116,8 +119,11 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::delete('/workspace/members/{member}', [WorkspaceMemberController::class, 'destroy'])
         ->name('workspace-members.destroy');    
 
+    // --- Tickets Routes (Support alternate menu paths) ---
     Route::get('/tickets', [TicketController::class, 'index'])
         ->name('tickets.index');
+        
+    Route::get('/workspaces/tickets', [TicketController::class, 'index']); // Added fallback for frontend menu path
 
     Route::post('/tickets', [TicketController::class, 'store'])
         ->name('tickets.store');
