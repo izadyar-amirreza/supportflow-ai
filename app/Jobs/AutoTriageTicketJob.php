@@ -4,7 +4,7 @@ namespace App\Jobs;
 
 use App\Models\Ticket;
 use App\Models\TicketActivity;
-use App\Services\AI\Providers\OpenAiProvider;
+use App\Services\AI\AiTicketService;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Bus\Dispatchable;
@@ -12,6 +12,7 @@ use Illuminate\Queue\InteractsWithQueue;
 use Illuminate\Queue\SerializesModels;
 use Illuminate\Support\Facades\Log;
 use App\Events\TicketTriagedEvent;
+
 class AutoTriageTicketJob implements ShouldQueue
 {
     use Dispatchable, InteractsWithQueue, Queueable, SerializesModels;
@@ -23,11 +24,14 @@ class AutoTriageTicketJob implements ShouldQueue
         public int $triggeredByUserId
     ) {}
 
-    public function handle(): void
+    // Inject AiTicketService via Laravel Service Container to use the active AI provider (e.g., Groq)
+    public function handle(AiTicketService $aiService): void
     {
         try {
-            $ai = new OpenAiProvider();
-            $triage = $ai->triageTicket($this->ticket);
+            // Check if triageTicket exists on AiTicketService, otherwise invoke via provider property
+            $triage = method_exists($aiService, 'triageTicket') 
+                ? $aiService->triageTicket($this->ticket)
+                : (fn() => (new \ReflectionClass($aiService))->getProperty('provider')->getValue($aiService)->triageTicket($this->ticket))();
 
             $oldPriority = $this->ticket->priority;
             $newPriority = $triage['priority'] ?? $oldPriority;
@@ -56,7 +60,7 @@ class AutoTriageTicketJob implements ShouldQueue
                 'new_value'   => $newPriority,
             ]);
 
-            // If AI actually executed the close action, log it in the activity feed!
+            // If AI actually executed the close action, log it in the activity feed
             if ($newStatus === 'closed' && $oldStatus !== 'closed') {
                 TicketActivity::create([
                     'ticket_id'   => $this->ticket->id,
@@ -71,7 +75,7 @@ class AutoTriageTicketJob implements ShouldQueue
             TicketTriagedEvent::dispatch($this->ticket);
 
         } catch (\Exception $exception) {
-            \Illuminate\Support\Facades\Log::error('AutoTriageTicketJob Failed: ' . $exception->getMessage());
+            Log::error('AutoTriageTicketJob Failed: ' . $exception->getMessage());
         }
     }
 }
