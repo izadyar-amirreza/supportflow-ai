@@ -6,9 +6,11 @@ use App\Models\Ticket;
 use App\Models\TicketActivity;
 use App\Models\TicketComment;
 use App\Models\User;
+use App\Models\Workspace;
 use App\Models\WorkspaceMember;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
 use Inertia\Inertia;
 use Inertia\Response;
@@ -19,6 +21,7 @@ use Illuminate\Support\Facades\Storage;
 use App\Jobs\GenerateTicketSummaryJob;
 use App\Jobs\GenerateTicketSuggestedReplyJob;
 use App\Jobs\AutoTriageTicketJob;
+
 class TicketController extends Controller
 {
     public function index(Request $request): Response
@@ -30,7 +33,7 @@ class TicketController extends Controller
             'status'   => $request->input('status', 'all'),
             'priority' => $request->input('priority', 'all'),
             'sort'     => $request->input('sort', 'latest'),
-            'tag'      => $request->input('tag', ''), // 🌟 Added AI Tag filter
+            'tag'      => $request->input('tag', ''),
             'per_page' => (int) $request->input('per_page', 10),
         ];
 
@@ -70,7 +73,6 @@ class TicketController extends Controller
             $ticketQuery->where('priority', $filters['priority']);
         }
 
-        // 🌟 Apply AI Tag Filter (Searching inside JSON column)
         if ($filters['tag'] !== '') {
             $ticketQuery->whereJsonContains('ai_tags', $filters['tag']);
         }
@@ -113,8 +115,8 @@ class TicketController extends Controller
                 'description' => $ticket->description,
                 'status' => $ticket->status,
                 'priority' => $ticket->priority,
-                'ai_sentiment' => $ticket->ai_sentiment, // 🌟 Sent to React
-                'ai_tags'      => $ticket->ai_tags,      // 🌟 Sent to React
+                'ai_sentiment' => $ticket->ai_sentiment,
+                'ai_tags'      => $ticket->ai_tags,
                 'creator' => $ticket->creator?->name,
                 'creator_role' => $ticket->creator
                     ? $memberRoles->get($ticket->creator->id)
@@ -167,7 +169,6 @@ class TicketController extends Controller
             newValue: $ticket->title,
         );
 
-        // 🚀 Dispatch AI auto-triage job to the background
         AutoTriageTicketJob::dispatch($ticket, $request->user()->id);
 
         return redirect()->route('tickets.index');
@@ -191,11 +192,11 @@ class TicketController extends Controller
             $commentsQuery->where('is_internal', false);
         }
 
-                $ticket->load([
-                'creator:id,name,email',
-                'assignee:id,name,email',
-                'attachments.user:id,name',
-            ]);
+        $ticket->load([
+            'creator:id,name,email',
+            'assignee:id,name,email',
+            'attachments.user:id,name',
+        ]);
 
         $workspaceMembers = WorkspaceMember::query()
             ->where('workspace_id', $membership->workspace_id)
@@ -373,40 +374,37 @@ class TicketController extends Controller
         return redirect()->route('tickets.show', $ticket);
     }
 
-        // Dispatch AI Summary Job to background Queue
-        public function generateAiSummary(
-            Request $request,
-            Ticket $ticket,
-        ): RedirectResponse {
-            $membership = $this->currentMembership($request);
+    public function generateAiSummary(
+        Request $request,
+        Ticket $ticket,
+    ): RedirectResponse {
+        $membership = $this->currentMembership($request);
 
-            abort_unless($ticket->workspace_id === $membership->workspace_id, 404);
-            abort_unless($this->canManageTicket($membership), 403);
+        abort_unless($ticket->workspace_id === $membership->workspace_id, 404);
+        abort_unless($this->canManageTicket($membership), 403);
 
-            GenerateTicketSummaryJob::dispatch($ticket, $request->user()->id);
+        GenerateTicketSummaryJob::dispatch($ticket, $request->user()->id);
 
-            return redirect()
-                ->route('tickets.show', $ticket)
-                ->with('success', 'AI summary task queued! Refresh the page in a few seconds.');
-        }
+        return redirect()
+            ->route('tickets.show', $ticket)
+            ->with('success', 'AI summary task queued! Refresh the page in a few seconds.');
+    }
 
+    public function generateAiSuggestedReply(
+        Request $request,
+        Ticket $ticket,
+    ): RedirectResponse {
+        $membership = $this->currentMembership($request);
 
-        // Dispatch AI Suggested Reply Job to background Queue
-        public function generateAiSuggestedReply(
-            Request $request,
-            Ticket $ticket,
-        ): RedirectResponse {
-            $membership = $this->currentMembership($request);
+        abort_unless($ticket->workspace_id === $membership->workspace_id, 404);
+        abort_unless($this->canManageTicket($membership), 403);
 
-            abort_unless($ticket->workspace_id === $membership->workspace_id, 404);
-            abort_unless($this->canManageTicket($membership), 403);
+        GenerateTicketSuggestedReplyJob::dispatch($ticket, $request->user()->id);
 
-            GenerateTicketSuggestedReplyJob::dispatch($ticket, $request->user()->id);
-
-            return redirect()
-                ->route('tickets.show', $ticket)
-                ->with('success', 'AI suggested reply task queued! Refresh the page in a few seconds.');
-        }
+        return redirect()
+            ->route('tickets.show', $ticket)
+            ->with('success', 'AI suggested reply task queued! Refresh the page in a few seconds.');
+    }
 
     public function comment(Request $request, Ticket $ticket): RedirectResponse
     {
@@ -446,7 +444,7 @@ class TicketController extends Controller
         return redirect()->route('tickets.show', $ticket);
     }
 
-        public function uploadAttachment(Request $request, Ticket $ticket): RedirectResponse
+    public function uploadAttachment(Request $request, Ticket $ticket): RedirectResponse
     {
         $membership = $this->currentMembership($request);
 
@@ -491,7 +489,7 @@ class TicketController extends Controller
             ->with('success', 'Attachment uploaded successfully.');
     }
 
-        public function deleteAttachment(
+    public function deleteAttachment(
         Request $request,
         Ticket $ticket,
         TicketAttachment $attachment,
@@ -526,11 +524,13 @@ class TicketController extends Controller
             ->with('success', 'Attachment deleted successfully.');
     }
 
+    // --- SELF-HEALING MEMBERSHIP METHOD (Prevents 404 errors entirely) ---
     private function currentMembership(Request $request): WorkspaceMember
     {
+        $user = $request->user();
         $currentWorkspaceId = session('current_workspace_id');
 
-        $membershipQuery = $request->user()
+        $membershipQuery = $user
             ->workspaceMemberships()
             ->with('workspace');
 
@@ -539,7 +539,30 @@ class TicketController extends Controller
             : null;
 
         if (! $membership) {
-            $membership = $membershipQuery->firstOrFail();
+            $membership = $membershipQuery->first();
+
+            // Fallback: Auto-create workspace and membership if missing in DB
+            if (! $membership) {
+                $workspace = Workspace::firstOrCreate(
+                    ['owner_id' => $user->id],
+                    [
+                        'name' => 'Default Workspace',
+                        'slug' => 'default-workspace-' . $user->id,
+                    ]
+                );
+
+                $membership = WorkspaceMember::firstOrCreate(
+                    [
+                        'workspace_id' => $workspace->id,
+                        'user_id' => $user->id,
+                    ],
+                    [
+                        'role' => 'owner',
+                    ]
+                );
+
+                $membership->load('workspace');
+            }
 
             session(['current_workspace_id' => $membership->workspace_id]);
         }
