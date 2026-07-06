@@ -20,11 +20,11 @@ class OpenAiProvider implements AiProvider
             throw new Exception("Ticket does not belong to any workspace.");
         }
 
-        // Fetching the decrypted key directly from the workspace
+        // 1. Fetching the decrypted key directly from workspace, then check OpenAI key, then fallback to Groq key
         $apiKey = trim((string) $workspace->ai_api_key);
         
         if (empty($apiKey)) {
-            $apiKey = trim((string) env('OPENAI_API_KEY', ''));
+            $apiKey = trim((string) env('OPENAI_API_KEY', env('GROQ_API_KEY', '')));
         }
 
         if (empty($apiKey)) {
@@ -40,8 +40,9 @@ class OpenAiProvider implements AiProvider
 
         $guzzle = new GuzzleClient($options);
 
-        // Forcing Groq Base URI to prevent default routing issues
-        $baseUri = 'https://api.groq.com/openai/v1';
+        // 2. Dynamically resolve Base URI: Switch to Groq API if a Groq key or provider is detected
+        $isGroq = !empty(env('GROQ_API_KEY')) || env('AI_PROVIDER') === 'groq';
+        $baseUri = $isGroq ? 'https://api.groq.com/openai/v1' : 'https://api.openai.com/v1';
 
         return OpenAI::factory()
             ->withApiKey($apiKey)
@@ -56,6 +57,13 @@ class OpenAiProvider implements AiProvider
         
         if ($workspace && !empty($workspace->ai_model)) {
             return $workspace->ai_model;
+        }
+
+        // 3. Dynamically fallback to Groq's lightning-fast Llama model if Groq is active
+        $isGroq = !empty(env('GROQ_API_KEY')) || env('AI_PROVIDER') === 'groq';
+
+        if ($isGroq) {
+            return env('GROQ_MODEL', env('OPENAI_MODEL', 'llama3-8b-8192'));
         }
 
         return env('OPENAI_MODEL', 'gpt-4o-mini');
@@ -92,12 +100,10 @@ class OpenAiProvider implements AiProvider
             $conversation = "Ticket Description: " . ($ticket->description ?? 'No description.');
         }
 
-        // 1. Fetch Knowledge Base articles for this specific workspace
         $knowledgeBases = \App\Models\KnowledgeBase::where('workspace_id', $ticket->workspace_id)->get();
         
         $systemPrompt = 'You are a professional customer support agent. Based on the provided conversation, write a helpful, solution-oriented suggested reply for the customer. IMPORTANT: Write the reply entirely in clear, professional English.';
 
-        // 2. Inject RAG (Retrieval-Augmented Generation) context if available
         if ($knowledgeBases->isNotEmpty()) {
             $systemPrompt .= "\n\n--- COMPANY KNOWLEDGE BASE ---\nUse the following internal documents to accurately answer the customer's request. Strictly adhere to these policies and do not invent rules:\n";
             
