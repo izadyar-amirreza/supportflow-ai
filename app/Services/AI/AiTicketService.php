@@ -22,4 +22,9 @@ class AiTicketService
     {
         return $this->provider->suggestReply($ticket, $comments);
     }
+
+    public function triageTicket(Ticket $ticket): array
+    {
+        return $this->provider->triageTicket($ticket);
+    }
 }

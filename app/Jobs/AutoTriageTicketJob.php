@@ -12,6 +12,7 @@ use Illuminate\Queue\InteractsWithQueue;
 use Illuminate\Queue\SerializesModels;
 use Illuminate\Support\Facades\Log;
 use App\Events\TicketTriagedEvent;
+use Throwable;
 
 class AutoTriageTicketJob implements ShouldQueue
 {
@@ -24,14 +25,10 @@ class AutoTriageTicketJob implements ShouldQueue
         public int $triggeredByUserId
     ) {}
 
-    // Inject AiTicketService via Laravel Service Container to use the active AI provider (e.g., Groq)
     public function handle(AiTicketService $aiService): void
     {
         try {
-            // Check if triageTicket exists on AiTicketService, otherwise invoke via provider property
-            $triage = method_exists($aiService, 'triageTicket') 
-                ? $aiService->triageTicket($this->ticket)
-                : (fn() => (new \ReflectionClass($aiService))->getProperty('provider')->getValue($aiService)->triageTicket($this->ticket))();
+            $triage = $aiService->triageTicket($this->ticket);
 
             $oldPriority = $this->ticket->priority;
             $newPriority = $triage['priority'] ?? $oldPriority;
@@ -39,7 +36,6 @@ class AutoTriageTicketJob implements ShouldQueue
             $oldStatus = $this->ticket->status;
             $newStatus = $oldStatus;
 
-            // Check if the AI agent decided to execute an action
             if (isset($triage['action']) && $triage['action'] === 'close_ticket') {
                 $newStatus = 'closed';
             }
@@ -60,7 +56,6 @@ class AutoTriageTicketJob implements ShouldQueue
                 'new_value'   => $newPriority,
             ]);
 
-            // If AI actually executed the close action, log it in the activity feed
             if ($newStatus === 'closed' && $oldStatus !== 'closed') {
                 TicketActivity::create([
                     'ticket_id'   => $this->ticket->id,
@@ -74,7 +69,7 @@ class AutoTriageTicketJob implements ShouldQueue
 
             TicketTriagedEvent::dispatch($this->ticket);
 
-        } catch (\Exception $exception) {
+        } catch (Throwable $exception) {
             Log::error('AutoTriageTicketJob Failed: ' . $exception->getMessage());
         }
     }
