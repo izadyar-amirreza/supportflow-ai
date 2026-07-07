@@ -12,6 +12,11 @@ use Exception;
 
 class OpenAiProvider implements AiProvider
 {
+    private function isGroqMode(): bool
+    {
+        return !empty(env('GROQ_API_KEY')) || env('AI_PROVIDER') === 'groq';
+    }
+
     private function getClient(Ticket $ticket)
     {
         $workspace = $ticket->workspace;
@@ -20,15 +25,22 @@ class OpenAiProvider implements AiProvider
             throw new Exception("Ticket does not belong to any workspace.");
         }
 
-        // 1. Fetching the decrypted key directly from workspace, then check OpenAI key, then fallback to Groq key
-        $apiKey = trim((string) $workspace->ai_api_key);
-        
-        if (empty($apiKey)) {
+        $isGroq = $this->isGroqMode();
+
+        // If Groq is active, strictly prioritize GROQ_API_KEY. Otherwise check OPENAI_API_KEY.
+        if ($isGroq) {
+            $apiKey = trim((string) env('GROQ_API_KEY', env('OPENAI_API_KEY', '')));
+        } else {
             $apiKey = trim((string) env('OPENAI_API_KEY', env('GROQ_API_KEY', '')));
         }
 
+        // Fallback to workspace key if environment keys are missing
         if (empty($apiKey)) {
-            throw new Exception("No AI API key configured for Workspace: {$workspace->name}");
+            $apiKey = trim((string) $workspace->ai_api_key);
+        }
+
+        if (empty($apiKey)) {
+            throw new Exception("No valid AI API key configured.");
         }
 
         $proxy = env('OPENAI_PROXY');
@@ -40,8 +52,7 @@ class OpenAiProvider implements AiProvider
 
         $guzzle = new GuzzleClient($options);
 
-        // 2. Dynamically resolve Base URI: Switch to Groq API if a Groq key or provider is detected
-        $isGroq = !empty(env('GROQ_API_KEY')) || env('AI_PROVIDER') === 'groq';
+        // Dynamically switch Base URI for Groq
         $baseUri = $isGroq ? 'https://api.groq.com/openai/v1' : 'https://api.openai.com/v1';
 
         return OpenAI::factory()
@@ -53,17 +64,15 @@ class OpenAiProvider implements AiProvider
 
     private function resolveModel(Ticket $ticket): string
     {
+        // When using Groq, force the Llama model to prevent 404 Model Not Found errors
+        if ($this->isGroqMode()) {
+            return env('GROQ_MODEL', 'llama3-8b-8192');
+        }
+
         $workspace = $ticket->workspace;
         
         if ($workspace && !empty($workspace->ai_model)) {
             return $workspace->ai_model;
-        }
-
-        // 3. Dynamically fallback to Groq's lightning-fast Llama model if Groq is active
-        $isGroq = !empty(env('GROQ_API_KEY')) || env('AI_PROVIDER') === 'groq';
-
-        if ($isGroq) {
-            return env('GROQ_MODEL', env('OPENAI_MODEL', 'llama3-8b-8192'));
         }
 
         return env('OPENAI_MODEL', 'gpt-4o-mini');
