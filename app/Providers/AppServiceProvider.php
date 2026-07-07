@@ -3,7 +3,8 @@
 namespace App\Providers;
 
 use Illuminate\Support\ServiceProvider;
-use Illuminate\Support\Facades\URL;
+use App\Services\AI\Contracts\AiProvider;
+use App\Services\AI\Providers\OpenAiProvider;
 
 class AppServiceProvider extends ServiceProvider
 {
@@ -12,7 +13,8 @@ class AppServiceProvider extends ServiceProvider
      */
     public function register(): void
     {
-        //
+        // Bind the AiProvider interface to our smart hybrid OpenAiProvider
+        $this->app->bind(AiProvider::class, OpenAiProvider::class);
     }
 
     /**
@@ -20,9 +22,6 @@ class AppServiceProvider extends ServiceProvider
      */
     public function boot(): void
     {
-        // حل مشکل صفحه‌ی سفید و Mixed Content روی سرور Render
-        if (config('app.env') === 'production') {
-            URL::forceScheme('https');
-        }
+        //
     }
 }
