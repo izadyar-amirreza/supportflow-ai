@@ -27,14 +27,12 @@ class OpenAiProvider implements AiProvider
 
         $isGroq = $this->isGroqMode();
 
-        // If Groq is active, strictly prioritize GROQ_API_KEY. Otherwise check OPENAI_API_KEY.
         if ($isGroq) {
             $apiKey = trim((string) env('GROQ_API_KEY', env('OPENAI_API_KEY', '')));
         } else {
             $apiKey = trim((string) env('OPENAI_API_KEY', env('GROQ_API_KEY', '')));
         }
 
-        // Fallback to workspace key if environment keys are missing
         if (empty($apiKey)) {
             $apiKey = trim((string) $workspace->ai_api_key);
         }
@@ -52,7 +50,6 @@ class OpenAiProvider implements AiProvider
 
         $guzzle = new GuzzleClient($options);
 
-        // Dynamically switch Base URI for Groq
         $baseUri = $isGroq ? 'https://api.groq.com/openai/v1' : 'https://api.openai.com/v1';
 
         return OpenAI::factory()
@@ -64,9 +61,15 @@ class OpenAiProvider implements AiProvider
 
     private function resolveModel(Ticket $ticket): string
     {
-        // When using Groq, force the Llama model to prevent 404 Model Not Found errors
+        // Automatically switch to Groq's active and fastest model (Llama 3.1 8B Instant)
         if ($this->isGroqMode()) {
-            return env('GROQ_MODEL', 'llama3-8b-8192');
+            $model = trim((string) env('GROQ_MODEL', 'llama-3.1-8b-instant'));
+            
+            // Intercept and auto-fix if deprecated models are present in environment variables
+            if (in_array($model, ['llama3-8b-8192', 'llama3-70b-8192'], true)) {
+                return 'llama-3.1-8b-instant';
+            }
+            return $model;
         }
 
         $workspace = $ticket->workspace;
