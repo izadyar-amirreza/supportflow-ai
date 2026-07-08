@@ -12,13 +12,13 @@ use App\Services\AI\Providers\OpenAiProvider;
 use App\Http\Controllers\WorkspaceAiSettingsController;
 use App\Http\Controllers\KnowledgeBaseController;
 
+// 🚀 Core Refactor: Smart navigation redirecting users to Dashboard or Login instead of Laravel's default Welcome page.
 Route::get('/', function () {
-    return Inertia::render('Welcome', [
-        'canLogin' => Route::has('login'),
-        'canRegister' => Route::has('register'),
-        'laravelVersion' => Application::VERSION,
-        'phpVersion' => PHP_VERSION,
-    ]);
+    if (auth()->check()) {
+        return redirect()->route('dashboard');
+    }
+
+    return redirect()->route('login');
 });
 
 Route::middleware(['auth', 'verified'])->group(function () {
