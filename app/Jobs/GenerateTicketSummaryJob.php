@@ -4,7 +4,7 @@ namespace App\Jobs;
 
 use App\Models\Ticket;
 use App\Models\TicketActivity;
-use App\Services\AI\Providers\OpenAiProvider;
+use App\Services\AI\AiTicketService;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Bus\Dispatchable;
@@ -23,12 +23,14 @@ class GenerateTicketSummaryJob implements ShouldQueue
         public int $triggeredByUserId
     ) {}
 
-    public function handle(): void
+    // Inject AiTicketService via Laravel Service Container to use the configured AI provider
+    public function handle(AiTicketService $aiService): void
     {
         try {
             $comments = $this->ticket->comments()->oldest()->get();
-            $ai = new OpenAiProvider();
-            $summary = $ai->summarizeTicket($this->ticket, $comments);
+            
+            // Generate summary dynamically using whatever provider is active (Groq, Gemini, etc.)
+            $summary = $aiService->summarizeTicket($this->ticket, $comments);
 
             $this->ticket->update([
                 'ai_summary' => $summary,

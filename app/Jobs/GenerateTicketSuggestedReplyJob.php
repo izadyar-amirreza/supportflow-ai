@@ -4,7 +4,7 @@ namespace App\Jobs;
 
 use App\Models\Ticket;
 use App\Models\TicketActivity;
-use App\Services\AI\Providers\OpenAiProvider;
+use App\Services\AI\AiTicketService;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Bus\Dispatchable;
@@ -23,12 +23,14 @@ class GenerateTicketSuggestedReplyJob implements ShouldQueue
         public int $triggeredByUserId
     ) {}
 
-    public function handle(): void
+    // Inject AiTicketService via Laravel Service Container
+    public function handle(AiTicketService $aiService): void
     {
         try {
             $comments = $this->ticket->comments()->oldest()->get();
-            $ai = new OpenAiProvider();
-            $suggestedReply = $ai->suggestReply($this->ticket, $comments);
+            
+            // Generate reply dynamically using the active AI provider
+            $suggestedReply = $aiService->suggestReply($this->ticket, $comments);
 
             $this->ticket->update([
                 'ai_suggested_reply' => $suggestedReply,
